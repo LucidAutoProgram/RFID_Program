@@ -133,6 +133,32 @@ class DatabaseOperations:
         finally:
             db_cursor.close()
 
+    def findAllDeviceIPAndLocationInRFIDDeviceDetails(self) -> List[Tuple[str, str]]:
+        """
+        Fetches all the Device_IP and Location from the RFID_Device_Details table.
+
+        :return: List[Tuple[
+                            Device_IP,
+                            Location
+                    ]]
+        """
+        db_cursor = None
+        try:
+            db_cursor = self.connection.cursor()
+            prepared_statement = """
+                                    SELECT Device_IP, Location 
+                                    FROM RFID_Device_Details 
+                                  """
+            db_cursor.execute(prepared_statement)
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findAllDeviceIPAndLocationInRFIDDeviceDetails => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+
 
 server_connection_params = DatabaseOperations(
     host_ip='192.168.10.1',
