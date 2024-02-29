@@ -4,7 +4,7 @@ import PySimpleGUI as sg
 
 from db_operations import server_connection_params
 from utils import create_rfid_layout, setup_async_updates, start_reading, active_connections, stop_reading, \
-    global_asyncio_loop
+    global_asyncio_loop, online_locations, get_global_asyncio_loop, getRFIDResponseQueue
 
 
 def launch_gui(ip_addresses, ip_addresses_with_location):
@@ -14,14 +14,26 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
     sg.theme('DarkGrey12')
 
     # Create two separate columns for box_maker and product_maker with location labels
-    box_maker_column = [[sg.Frame(title='', layout=create_rfid_layout(ip, 'red', loc), border_width=2,
-                                  title_color='white', relief=sg.RELIEF_SUNKEN, background_color='black')]
-                        for ip, loc in ip_addresses_with_location if
-                        'BoxMaker' in loc or 'ManualFeeding' in loc]
+    box_maker_column = []
+    product_maker_column = []
 
-    product_maker_column = [[sg.Frame(title='', layout=create_rfid_layout(ip, 'red', loc), border_width=2,
-                                      title_color='white', relief=sg.RELIEF_SUNKEN, background_color='black')]
-                            for ip, loc in ip_addresses_with_location if 'ProductMaker' in loc]
+    for ip, loc in ip_addresses_with_location:
+        # Fetch port and reading mode for each IP address
+        device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip)
+        device_port = device_port_result[0][0] if device_port_result else 'Not available'
+
+        reading_mode_result = server_connection_params.findReadingModeInRFIDDeviceDetailsUsingDeviceIP(ip)
+        reading_mode = reading_mode_result[0][0] if reading_mode_result else 'Not available'
+
+        layout = create_rfid_layout(ip, 'red', loc, device_port, reading_mode)
+
+        if 'BoxMaker' in loc or 'ManualFeeding' in loc:
+            box_maker_column.append([sg.Frame(title='', layout=layout, border_width=2,
+                                              title_color='white', relief=sg.RELIEF_SUNKEN, background_color='black')])
+        elif 'ProductMaker' in loc:
+            product_maker_column.append([sg.Frame(title='', layout=layout, border_width=2,
+                                                  title_color='white', relief=sg.RELIEF_SUNKEN,
+                                                  background_color='black')])
 
     details_box = sg.Column([
         [sg.Text('DEVICE DETAILS', background_color='black', text_color='white', font=('Cambria', 17),
@@ -38,19 +50,21 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
 
     layout = [
         [sg.Column(box_maker_column, background_color='black'), sg.VSeparator(),
-         sg.Column(product_maker_column, background_color='black')],
+         sg.Column(product_maker_column, background_color='black'), sg.VSeparator(),
+         sg.Multiline(default_text='', size=(40, 10), key='SUMMARY', autoscroll=True, expand_x=True, expand_y=True,
+                      background_color='black')],
         [sg.Column([[terminal_output]], expand_x=True, expand_y=True, pad=((0, 10), (0, 0))),
          sg.Column([[details_box]], expand_x=True, expand_y=True, pad=((10, 0), (0, 0)))],
     ]
 
-    window = sg.Window(title="RFID Reader Dashboard ", layout=layout, margins=(10, 10), size=(600, 600), resizable=True,
+    window = sg.Window(title="RFID Reader Dashboard ", layout=layout, margins=(10, 10), size=(800, 600), resizable=True,
                        finalize=True)
 
     # After setting up the GUI and starting the async updates
     queue = setup_async_updates(ip_addresses)
     last_clicked_ip = None
     last_clicked = None  # To keep track of the last clicked button
-
+    summarized_ips = set()
     while True:
         event, values = window.read(timeout=100)
         if event == sg.WINDOW_CLOSED:
@@ -115,55 +129,74 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 last_clicked_ip = ip_address
 
         elif event == 'START':
+            window['START'].update(disabled=True)
+            window['STOP'].update(disabled=False)
             if last_clicked_ip in active_connections:
-                print('Global asyncio loop in gui', global_asyncio_loop)
-                if global_asyncio_loop is not None:  # Ensure the loop is available
-                    asyncio.run_coroutine_threadsafe(start_reading(last_clicked_ip), global_asyncio_loop)
+                loop = get_global_asyncio_loop()
+                print('Global asyncio loop in gui', loop)
+                if loop is not None:
+                    asyncio.run_coroutine_threadsafe(start_reading(last_clicked_ip), loop)
+                    window['TERMINAL'].update('Started RFID reading\n', append=True)
                 else:
                     print("Event loop not available for async operation.")
-
-                # asyncio.run(start_reading(last_clicked_ip))
-                # Schedule the start_reading coroutine to be run
-                # schedule_async_task(start_reading, last_clicked_ip)
-
-                # # Retrieve the event loop from the background thread
-                # loop = asyncio.get_event_loop()
-                #
-                # # When scheduling the task
-                # schedule_async_task(start_reading(last_clicked_ip), loop)
+                    window['TERMINAL'].update('Unable to start RFID reading\n', append=True)
 
             else:
                 print('last clicked Ip address', last_clicked_ip)
                 print("Cannot Start reading. Connection not established or RFID reader offline.")
+                window['TERMINAL'].update('Unable to start RFID reading. RFID reader not available.\n', append=True)
 
         elif event == 'STOP':
+            window['START'].update(disabled=False)
+            window['STOP'].update(disabled=True)
             if last_clicked_ip in active_connections:
-                if global_asyncio_loop is not None:  # Ensure the loop is available
-                    asyncio.run_coroutine_threadsafe(stop_reading(last_clicked_ip), global_asyncio_loop)
+                loop = get_global_asyncio_loop()
+                print('Global asyncio loop in gui', loop)
+                if loop is not None:
+                    asyncio.run_coroutine_threadsafe(stop_reading(last_clicked_ip), loop)
+                    window['TERMINAL'].update('Stopped RFID reading\n', append=True)
                 else:
                     print("Event loop not available for async operation.")
-
-                # asyncio.run(stop_reading(last_clicked_ip))
-
-                # Schedule the stop_reading coroutine to be run
-                # schedule_async_task(stop_reading, last_clicked_ip)
-
-                # # Retrieve the event loop from the background thread
-                # loop = asyncio.get_event_loop()
-                #
-                # # When scheduling the task
-                # schedule_async_task(stop_reading(last_clicked_ip), loop)
+                    window['TERMINAL'].update('Unable to stop RFID reading\n', append=True)
             else:
                 print("Cannot stop reading. Connection not established or RFID reader offline.")
+                window['TERMINAL'].update('Unable to stop RFID reading. RFID reader not available.\n', append=True)
+                # Check for new RFID tag responses and update the GUI
+        try:
+            rfid_response_queue = getRFIDResponseQueue()
+            while not rfid_response_queue.empty():
+                rfid_response = rfid_response_queue.get_nowait()
+                window['TERMINAL'].update(value=rfid_response + '\n', append=True)
 
+        except Empty:
+            print('Queue for rfid tag handling is empty.')
+            pass  # Handle empty queue if necessary
         # Check if there are updates from the async task
         try:
+            online_summary_text = ""
+            offline_summary_text = ""
             while not queue.empty():
                 ip_address, image_data = queue.get_nowait()
-                print(f'Ip address {ip_address} and image data is {image_data}')
                 window[f'IMAGE_{ip_address}'].update(data=image_data)
+
+                # Separate the online and offline IP addresses
+                if ip_address in active_connections:
+                    if ip_address not in summarized_ips:
+                        location = next((loc for ip, loc in ip_addresses_with_location if ip == ip_address), "Unknown")
+                        online_summary_text += f"{location} (IP: {ip_address}) connection established\n"
+                        summarized_ips.add(ip_address)  # Add the IP address to the set
+                else:
+                    if ip_address not in summarized_ips:
+                        location = next((loc for ip, loc in ip_addresses_with_location if ip == ip_address), "Unknown")
+                        offline_summary_text += f"{location} (IP: {ip_address}) connection not established\n"
+                        summarized_ips.add(ip_address)  # Add the IP address to the set
+
+            # Update the summary terminal with online IPs at the top and offline IPs at the bottom
+            final_summary_text = online_summary_text + '\n' + offline_summary_text
+            if final_summary_text.strip():
+                window['SUMMARY'].update(value=final_summary_text.strip() + '\n', append=True)
+
         except Empty:
-            print('Queue is empty')
             pass
 
     window.close()
