@@ -3,8 +3,7 @@ from queue import Empty
 import PySimpleGUI as sg
 
 from db_operations import server_connection_params
-from utils import create_rfid_layout, setup_async_updates, start_reading, active_connections, stop_reading, \
-    global_asyncio_loop, online_locations, get_global_asyncio_loop, getRFIDResponseQueue
+from utils import create_rfid_layout, setup_async_updates, start_reading, active_connections, stop_reading, get_global_asyncio_loop, getRFIDResponseQueue
 
 
 def launch_gui(ip_addresses, ip_addresses_with_location):

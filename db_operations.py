@@ -1,5 +1,4 @@
 from typing import Tuple, List
-
 import mysql.connector
 from mysql.connector import Error
 
@@ -167,7 +166,7 @@ server_connection_params = DatabaseOperations(
     db_pool_name='server_db_pool',
     db_pool_size=5
 )
-#
+
 # device_ips = server_connection_params.findAllDeviceIPInRFIDDeviceDetails()
 # if device_ips:
 #     print(f"Device IPs: {device_ips}")

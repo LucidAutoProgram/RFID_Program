@@ -1,5 +1,4 @@
 import asyncio
-import binascii
 import io
 import platform
 from queue import Queue
@@ -9,17 +8,26 @@ import PySimpleGUI as sg
 
 from rfid_api import open_net_connection, start_reading_mode, stop_reading_mode
 
+
+# -------------------- Global Variables declarations ------------------
+
 # Setting the desired width and height of image
 width = 15
 height = 15
 active_connections = {}  # Global storage for active connections
-# Global dictionary to store online status of IP addresses
-online_locations = {}
+global_asyncio_loop = None  
+reading_active = {}  # This dictionary keeps track of the ip addresses of the rfid readers which are in reading mode.
+rfid_tag_response_queue = Queue()  # Queue to store rfid tag response.
+
+# -------------------- Functions ------------------------------------
 
 
 def get_image_data(file, maxsize=(width, height)):
     """
         Generating image data using PIL
+        :param file: The path of the image.
+        :param maxsize: Maximum width and height of the image.
+        :return : Binarized png image data.
     """
     img = Image.open(file)
     img.thumbnail(maxsize)
@@ -32,6 +40,11 @@ def get_image_data(file, maxsize=(width, height)):
 def create_rfid_layout(ip, status_color, location, port, reading_mode):
     """
         Generating layout for each RFID box with location instead of IP on the button.
+        :param ip: Ip address of the rfid reader.
+        :param status_color: Color to display based on the status of rfid reader (red for unreachable rfid reader, yellow for reachable reader and green for reader which is reachable and in reading mode).
+        :param location: Location of the rfid reader where it is placed.
+        :param reading_mode: Mode of the reader whether it is reading or not.
+        :return: Image and button displaying the status of the rfid and its location.
     """
     tooltip_text = f"IP: {ip}\nLocation: {location}\nPort: {port}\nReading Mode: {reading_mode}"
     return [
@@ -76,45 +89,12 @@ async def rfid_connectivity_checker(ip_address, number_of_attempts: int = 2):
     return process.returncode == 0
 
 
-# This function will run the asyncio event loop
-# def start_asyncio_loop(ip_addresses, queue):
-#     """
-#         This function initializes a new asyncio event loop for the thread.
-#     """
-#
-#     # Initialize a new event loop for the thread
-#     loop = asyncio.new_event_loop()
-#     asyncio.set_event_loop(loop)
-#
-#     # Create and schedule your asynchronous tasks
-#     loop.create_task(async_update_rfid_status(ip_addresses, queue))
-#
-#     # Start the loop to process tasks
-#     loop.run_forever()
-
-
-# def schedule_async_task(coroutine_func, *args):
-#     """
-#     Schedules an async coroutine to be executed.
-#
-#     :param coroutine_func: The async function to schedule.
-#     :param args: Arguments to pass to the coroutine function.
-#     """`
-#     try:
-#         loop = asyncio.get_running_loop()
-#     except RuntimeError:  # If no running event loop
-#         loop = asyncio.new_event_loop()
-#         asyncio.set_event_loop(loop)
-#
-#     if loop.is_running():
-#         loop.call_soon_threadsafe(lambda: asyncio.ensure_future(coroutine_func(*args)))
-#     else:
-#         asyncio.run(coroutine_func(*args))
-
 def get_rfid_tag_info(response):
     """
         Function to extract the rfid reader tag info from the response returned from the rfid reader after sending the
         start reading command by the start_reading_mode function.
+        :param response: It is the response returned by the reader.
+        :return: Hexadecimal formatted rfid tag.
     """
     if not response or len(response) < 11:
         return None
@@ -124,31 +104,63 @@ def get_rfid_tag_info(response):
     epc_data_end_index = epc_data_start_index + epc_len
     epc_data = response[epc_data_start_index:epc_data_end_index]  # The raw rfid tag info.
     epc_hex = ''.join(format(x, '02x') for x in epc_data)  # Convert to hexadecimal string
-    return epc_hex
-
-
-global_asyncio_loop = None
+    return epc_hex 
 
 
 def start_asyncio_loop(ip_addresses, queue):
+    """
+        This function is for performing the asynchronous tasks with the synchronous tasks like with the GUI to run them async tasks smoothly. 
+        :param ip_addresses: List of the ip addresses of the rfid reader.
+        :param queue: Queue to store the status of the rfid reader.
+    """
+    # Access the global variable to store the event loop reference for later access across the application.
     global global_asyncio_loop
+
+    # Create a new asyncio event loop. This is necessary because the default event loop might not be suitable
+    # or available, especially in contexts where the application is running in a thread (e.g., a GUI application thread)
+    # or in environments where the default event loop is already running or closed.
     loop = asyncio.new_event_loop()
+
+    # Set the newly created event loop as the current event loop for the current thread.
+    # This makes it possible to use asyncio.run_coroutine_threadsafe and other asyncio functionalities
+    # that depend on the current event loop.
     asyncio.set_event_loop(loop)
-    global_asyncio_loop = loop  # Store the loop in a global variable
+
+    # Store the loop in a global variable so it can be accessed from other parts of the application,
+    # such as where asynchronous tasks are scheduled or where the loop needs to be referenced for operations
+    # like shutting down the application cleanly.
+    global_asyncio_loop = loop  
     print('Global asyncio loop in utils', global_asyncio_loop)
+
+    # Create a task for asynchronously updating RFID status. This demonstrates the primary reason for having
+    # a dedicated event loop running - to perform asynchronous operations in the background while the rest of
+    # the application (like a GUI) runs synchronously or in a different event loop.
     loop.create_task(async_update_rfid_status(ip_addresses, queue))
+
+    # Start the event loop and keep it running. This is crucial for the continuous execution of asynchronous tasks.
+    # The loop will run indefinitely until it is stopped explicitly, allowing async tasks to be scheduled and executed
+    # as long as the application is running.
     loop.run_forever()
 
 
+
 def get_global_asyncio_loop():
+    # Access the global variable where the asyncio event loop reference is stored.
     global global_asyncio_loop
+
+    # Return the stored event loop. This function provides a way to access the event loop from anywhere in the
+    # application, which is necessary for scheduling tasks, running coroutines from synchronous code, or managing
+    # the event loop state (like stopping the loop during application shutdown).
     return global_asyncio_loop
 
 
+
 async def async_update_rfid_status(ip_addresses, queue):
-    global active_connections  # Access to the active connections dictionary
+    global active_connections  # dictionary containing the mapping of ip address which are reachable with their connections.
     """
         Asynchronously updates RFID status and puts results in a queue.
+        :param ip_addresses: List containing the ip addresses of the rfid reader.
+        :param queue: Queue where to store the status of the rfid reader ip addresses.
     """
     while True:
         # Create a list of tasks for all IP addresses
@@ -185,7 +197,17 @@ async def async_update_rfid_status(ip_addresses, queue):
 
 def setup_async_updates(ip_addresses):
     """
-        Sets up asynchronous update tasks.
+        Sets up asynchronous update tasks for monitoring and updating the RFID readers' status.
+
+        This function creates a new thread that runs an asyncio event loop. This approach allows
+        asynchronous tasks to run in the background, making it possible to perform non-blocking network
+        operations like checking the connectivity status of RFID readers.
+
+        :param ip_addresses: A list of IP addresses for RFID readers to monitor.
+
+        :return:
+            A queue.Queue instance that will be used to communicate updates back to the main thread,
+            typically to update the GUI with the status of each RFID reader.
     """
     queue = Queue()
 
@@ -194,10 +216,6 @@ def setup_async_updates(ip_addresses):
     thread.start()
 
     return queue
-
-
-reading_active = {}
-rfid_tag_response_queue = Queue()  # Queue to store rfid tag response.
 
 
 def getRFIDResponseQueue():
@@ -211,6 +229,7 @@ def getRFIDResponseQueue():
 
 async def start_reading(ip_address):
     """
+        Function to start the rfid reading on the start button press.
         :param ip_address: Ip address of the device to start the reading mode for.
     """
     global reading_active

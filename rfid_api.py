@@ -129,23 +129,6 @@ async def start_reading_mode(reader, writer, inv_type=0x00, inv_param=0):
     writer.write(command)
     await writer.drain()
 
-    # print("Listening for responses...")
-    # try:
-    #     while True:
-    #         response = await reader.read(1024)  # Wait indefinitely for data
-    #         if response:
-    #             print(f'Received response in hexadecimal format: {binascii.hexlify(response)}')
-    #             # Further process each response here
-    #         else:
-    #             # If an empty response is received, the connection was likely closed
-    #             print("The connection was closed by the reader.")
-    #             break
-    # except Exception as e:
-    #     print(f"Error receiving response: {e}")
-    # finally:
-    #     writer.close()
-    #     await writer.wait_closed()
-
 
 async def stop_reading_mode(writer):
     """
@@ -157,17 +140,3 @@ async def stop_reading_mode(writer):
     command = bytes(command_bytes)
     writer.write(command)
     await writer.drain()
-
-
-# async def main():
-#     ip_address = "192.168.18.3"
-#     port = 2022
-#     reader, writer = await open_net_connection(ip_address, port)
-#     if reader is not None and writer is not None:
-#         await start_reading_mode(reader, writer)
-#         # Assume some condition or wait here before stopping.
-#         # await stop_reading_mode(writer)
-#         # await close_network_connection(writer)
-#
-# if __name__ == "__main__":
-#     asyncio.run(main())
