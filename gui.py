@@ -3,7 +3,8 @@ from queue import Empty
 import PySimpleGUI as sg
 
 from db_operations import server_connection_params
-from utils import create_rfid_layout, setup_async_updates, start_reading, active_connections, stop_reading, get_global_asyncio_loop, getRFIDResponseQueue
+from utils import create_rfid_layout, setup_async_updates, start_reading, active_connections, stop_reading, \
+    get_global_asyncio_loop, getRFIDResponseQueue, rfid_ip_reading_mode
 
 
 def launch_gui(ip_addresses, ip_addresses_with_location):
@@ -61,11 +62,14 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
 
     # After setting up the GUI and starting the async updates
     queue = setup_async_updates(ip_addresses)
+    print(f'Queue for rfid status {queue}')
     last_clicked_ip = None
     last_clicked = None  # To keep track of the last clicked button
     summarized_ips = set()
+
     while True:
-        event, values = window.read(timeout=100)
+        event, values = window.read(timeout=10)
+        asyncio.get_event_loop().run_until_complete(asyncio.sleep(0))  # Pump the asyncio event loop
         if event == sg.WINDOW_CLOSED:
             break
 
@@ -97,6 +101,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 window['DEVICE_PORT'].update(f'Device Port: {device_port}')
                 window['DEVICE_LOCATION'].update(f'Device Location: {device_location}')
                 window['READING_MODE'].update(f'Reading Mode: {reading_mode}')
+                last_clicked_ip = ip_address
 
                 if not new_visibility:
                     last_clicked = None  # Resetting last clicked if boxes are hidden
@@ -134,7 +139,16 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 loop = get_global_asyncio_loop()
                 print('Global asyncio loop in gui', loop)
                 if loop is not None:
+                    print(f'Last clicked ip in gui start event {last_clicked_ip}')
                     asyncio.run_coroutine_threadsafe(start_reading(last_clicked_ip), loop)
+
+                    try:
+                        # Updating the reading mode as 'On' in the database whenever clicked on the start button
+                        server_connection_params.updateReadingModeStatusInRFIDDeviceDetails('On', last_clicked_ip)
+                    except Exception as e:
+                        print(f'Unable to update the reading mode status in the rfid device details for '
+                              f'{last_clicked_ip} as got error : {e}')
+
                     window['TERMINAL'].update('Started RFID reading\n', append=True)
                 else:
                     print("Event loop not available for async operation.")
@@ -153,6 +167,14 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 print('Global asyncio loop in gui', loop)
                 if loop is not None:
                     asyncio.run_coroutine_threadsafe(stop_reading(last_clicked_ip), loop)
+
+                    try:
+                        # Updating the reading mode as 'Off' in the database whenever clicked on the start button
+                        server_connection_params.updateReadingModeStatusInRFIDDeviceDetails('Off', last_clicked_ip)
+                    except Exception as e:
+                        print(f'Unable to update the reading mode status in the rfid device details for '
+                              f'{last_clicked_ip} as got error : {e}')
+
                     window['TERMINAL'].update('Stopped RFID reading\n', append=True)
                 else:
                     print("Event loop not available for async operation.")
@@ -174,8 +196,16 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
         try:
             online_summary_text = ""
             offline_summary_text = ""
+            # print(f'Queue at top while loop {queue}')
+            # if queue.empty():
+            #     print('if Queue is empty')
+            # else:
+            #     print('if Queue is not empty')
+            print(f'Queue size in the gui {queue.qsize()}')
             while not queue.empty():
+                print("Queue not empty")
                 ip_address, image_data = queue.get_nowait()
+                print(f'Ip address in image updating {ip_address} and image data {image_data}')
                 window[f'IMAGE_{ip_address}'].update(data=image_data)
 
                 # Separate the online and offline IP addresses
@@ -196,6 +226,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 window['SUMMARY'].update(value=final_summary_text.strip() + '\n', append=True)
 
         except Empty:
+            print('Queue for rfid light check handling is empty.')
             pass
 
     window.close()

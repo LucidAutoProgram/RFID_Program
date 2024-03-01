@@ -10,6 +10,7 @@ def open_device(com_port, baud_rate_index):
         :param baud_rate_index: Index of the list containing baud rates.
         :return: Connection established using serial.
     """
+
     baud_rates = [9600, 19200, 38400, 57600, 115200]
     try:
         baud_rate = baud_rates[baud_rate_index]
@@ -89,9 +90,9 @@ def crc16_cal(data):
 
 def interpret_response_status(status_code):
     """
-    The interpret_response_status function translates status codes from the RFID reader (and possibly from tags,
-    if applicable) into human-readable messages, facilitating debugging and operational monitoring
-    :param status_code: Status code return by the rfid reader.
+        The interpret_response_status function translates status codes from the RFID reader (and possibly from tags,
+        if applicable) into human-readable messages, facilitating debugging and operational monitoring
+        :param status_code: Status code return by the rfid reader.
     """
     if status_code == 0x00:
         print("Successful execution.")
@@ -119,7 +120,7 @@ def interpret_response_status(status_code):
 
 async def start_reading_mode(reader, writer, inv_type=0x00, inv_param=0):
     """
-    Asynchronously sends a command to start the RFID reading mode and continuously reads responses.
+        Asynchronously sends a command to start the RFID reading mode and continuously reads responses.
     """
     command_bytes = [0xCF, 0xFF, 0x00, 0x01, 0x05, inv_type] + list(inv_param.to_bytes(4, byteorder='little'))
     crc16 = crc16_cal(bytes(command_bytes))  # Assuming crc16_cal is defined elsewhere
@@ -132,7 +133,7 @@ async def start_reading_mode(reader, writer, inv_type=0x00, inv_param=0):
 
 async def stop_reading_mode(writer):
     """
-    Asynchronously sends a command to stop the RFID reading mode.
+        Asynchronously sends a command to stop the RFID reading mode.
     """
     command_bytes = [0xCF, 0xFF, 0x00, 0x02, 0x00]
     crc16 = crc16_cal(bytes(command_bytes))

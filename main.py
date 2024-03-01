@@ -1,18 +1,17 @@
-from db_operations import DatabaseOperations
-from gui import launch_gui
+from db_operations import server_connection_params
 
+from gui import launch_gui
+from utils import start_listening_response
 
 if __name__ == '__main__':
-    # Initialize database operations and fetch device IPs
-    db_connection = DatabaseOperations(
-        host_ip='192.168.10.1', host_username='LucidAuto', db_password='Lucid@390',
-        db_name='LucidAutoDB', db_ip='192.168.10.1', db_port=3306, db_pool_name='server_db_pool', db_pool_size=5
-    )
 
-    device_ips = [ip[0] for ip in db_connection.findAllDeviceIPInRFIDDeviceDetails()]  # This will contain the list of
-    # ip addresses stored in it.
+    device_ips = [ip[0] for ip in server_connection_params.findAllDeviceIPInRFIDDeviceDetails()]  # This will contain
+    # the list of ip addresses stored in it.
 
-    ip_addresses_with_location = db_connection.findAllDeviceIPAndLocationInRFIDDeviceDetails()
+    ip_addresses_with_location = server_connection_params.findAllDeviceIPAndLocationInRFIDDeviceDetails()
+
+    # Start listening for responses from RFID readers
+    start_listening_response(device_ips)
 
     # Start the GUI
     launch_gui(device_ips, ip_addresses_with_location)
