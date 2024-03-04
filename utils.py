@@ -22,6 +22,7 @@ rfid_tag_response_queue = Queue()  # Queue to store rfid tag response.
 rfid_ip_reading_mode = {}  # Dictionary to store the ip address with their reading mode status ('On' or 'Off')
 rfid_reader_last_response_time = {}  # # Dictionary to track the last response time for each IP (rfid reader).
 
+
 # -------------------- Functions ------------------------------------
 
 
@@ -40,21 +41,23 @@ def get_image_data(file, maxsize=(width, height)):
     return data
 
 
-def create_rfid_layout(ip, status_color, location, port, reading_mode):
+def create_rfid_layout(ip, status_color, device_location, port, reading_mode):
     """
     Generating layout for each RFID box with location instead of IP on the button. :param ip: Ip address of the rfid
     reader.
     :param status_color: Color to display based on the status of rfid reader (red for unreachable rfid
     reader, yellow for reachable reader and green for reader which is reachable and in reading mode).
-    :param location: Location of the rfid reader where it is placed.
-    :param reading_mode: Mode of the reader whether it is reading or not.
+    :param device_location: Location of the rfid reader where it is placed.
+    :param reading_mode: Mode of the reader whether it is readaing or not.
     :return: Image and button displaying the status of the rfid and its location.
     """
-    tooltip_text = f"IP: {ip}\nLocation: {location}\nPort: {port}\nReading Mode: {reading_mode}"
+    reading_mode_status = rfid_ip_reading_mode.get(ip, 'Unknown')
+
+    tooltip_text = f"IP: {ip}\nLocation: {device_location}\nPort: {port}\nReading Mode: {reading_mode_status}"
     return [
         [sg.Image(data=get_image_data(f'images/{status_color}.png', maxsize=(width, height)), background_color='black',
                   key=f'IMAGE_{ip}'),
-         sg.Button(location, button_color=('white', 'black'), border_width=0, focus=False,
+         sg.Button(device_location, button_color=('white', 'black'), border_width=0, focus=False,
                    key=f'BUTTON_{ip}', tooltip=tooltip_text)
          ],
     ]
@@ -145,6 +148,10 @@ def start_asyncio_loop(ip_addresses, queue):
         # the application (like a GUI) runs synchronously or in a different event loop.
         loop.create_task(async_update_rfid_status(ip_addresses, queue))
 
+        # Creating task for updating reading mode of the rfid reader based on the response received within last 2
+        # minutes.
+        loop.create_task(async_update_reading_mode_in_db(ip_addresses))
+
         event.set()  # Signal that the loop is now set up and ready
 
         # Start the event loop and keep it running. This is crucial for the continuous execution of asynchronous
@@ -226,19 +233,25 @@ async def listen_for_responses(ip_address):
     """
         Continuously listen for responses from an RFID reader.
     """
-    global active_connections, rfid_reader_last_response_time
+    global active_connections, rfid_reader_last_response_time, reading_active
     # Ensure a connection is established
+    print(f'Value of reading active before {ip_address} - {reading_active[ip_address]}')
+    print(f'Active connections before - {active_connections}')
     if ip_address not in active_connections:
         reader, writer = await open_net_connection(ip_address, port=2022)
         if reader and writer:
             active_connections[ip_address] = (reader, writer)
+            reading_active[ip_address] = True  # Enabling the reader in the reading mode
             print(f"Connection established for listening on {ip_address}")
         else:
             print(f"Failed to establish connection for listening on {ip_address}")
             return
 
+    print(f'Active connections after - {active_connections}')
+
     reader, _ = active_connections[ip_address]
-    while True:  # Continuously listen
+    print(f'Value of reading active after {ip_address} - {reading_active[ip_address]}')
+    while reading_active[ip_address]:  # If the reader is in reading mode.
         try:
             response = await reader.read(1024)
             if response:
@@ -249,13 +262,41 @@ async def listen_for_responses(ip_address):
                 rfid_reader_last_response_time[ip_address] = datetime.now()
             else:
                 # Handle connection closed
-                print(f"Connection closed by reader {ip_address}. Re-establishing connection...")
-                del active_connections[ip_address]
-                return await listen_for_responses(ip_address)
+                print(f"Connection closed by reader {ip_address}")
+                break
             await asyncio.sleep(0.01)
         except Exception as e:
             print(f"Error listening to {ip_address}: {e}")
             break
+
+
+async def async_update_reading_mode_in_db(ip_addresses):
+    """
+        This function is for updating the Reading_Mode in the database based on the response received within last 2
+        minutes. If it receives a response then updating Reading_Mode as 'On' else 'Off'
+        :param ip_addresses: The Ip address of the rfid reader.
+    """
+    while True:
+        for ip_address in ip_addresses:
+            try:
+                current_time = datetime.now()
+                last_response = rfid_reader_last_response_time.get(ip_address, current_time - timedelta(minutes=3))
+
+                if (current_time - last_response).total_seconds() <= 120:  # If response received from the reader within
+                    # last 2 minutes.
+                    server_connection_params.updateReadingModeStatusInRFIDDeviceDetails('On', ip_address)  # Writing
+                    # reading mode as 'On' for the reader
+                    print(f'Updated reading mode to On for {ip_address}')
+
+                else:
+                    server_connection_params.updateReadingModeStatusInRFIDDeviceDetails('Off', ip_address)
+                    print(f'Updated reading mode to Off for {ip_address}')
+
+            except Exception as e:
+
+                print(f"Error updating reading mode status for {ip_address}: {e}")
+
+        await asyncio.sleep(9)  # Wait for 5 seconds for next response check
 
 
 async def async_update_rfid_status(ip_addresses, queue):
@@ -264,7 +305,7 @@ async def async_update_rfid_status(ip_addresses, queue):
         :param ip_addresses: List containing the ip addresses of the rfid reader.
         :param queue: Queue where to store the status of the rfid reader ip addresses.
     """
-    global active_connections, rfid_ip_reading_mode, rfid_reader_last_response_time # dictionary containing the mapping
+    global active_connections, rfid_ip_reading_mode, rfid_reader_last_response_time  # dictionary containing the mapping
     # of ip address which are
     # reachable with their connections.
     while True:
@@ -278,11 +319,12 @@ async def async_update_rfid_status(ip_addresses, queue):
         for ip_address, is_online in zip(ip_addresses, results):
             # Initialize status_color to 'red' as default
             status_color = 'red'
+            reading_mode = 'Not available'
             if is_online:
                 # Check reading mode from the database
                 reading_mode_result = server_connection_params.findReadingModeInRFIDDeviceDetailsUsingDeviceIP(
                     ip_address)
-                reading_mode = reading_mode_result[0][0] if reading_mode_result else 'Not available'
+                reading_mode = 'On' if reading_mode_result and reading_mode_result[0][0] == 'On' else 'go'
 
                 current_time = datetime.now()
 
@@ -297,13 +339,19 @@ async def async_update_rfid_status(ip_addresses, queue):
                 if reading_mode == 'On' and (current_time - last_response).total_seconds() <= 120:
                     # Reading mode is On in the db and a response was received in the last 2 minutes
                     status_color = 'green'
+
                 elif reading_mode == 'On' and (current_time - last_response).total_seconds() > 120:
                     # Reading mode is On in the db but no response in the last 2 minutes
                     status_color = 'yellow'
+
                 else:
                     # Reading mode is off but reader is reachable
                     status_color = 'yellow'
 
+                if status_color == 'green':
+                    reading_mode = 'On'
+                else:
+                    reading_mode = 'Off'
                 # Check if connection is already established
                 if ip_address not in active_connections:
                     reader, writer = await open_net_connection(ip_address, port=2022)  # Adjust port as needed
@@ -319,10 +367,10 @@ async def async_update_rfid_status(ip_addresses, queue):
             # Update the ip_status_colors dictionary with the current status color
             rfid_ip_reading_mode[ip_address] = status_color
 
-            print(f'Status color {status_color} for {ip_address}')
+            print(f'Status color {status_color} for {ip_address} and reading mode {reading_mode}')
 
             image_data = get_image_data(f'images/{status_color}.png', maxsize=(width, height))
-            queue.put((ip_address, image_data))
+            queue.put((ip_address, image_data, reading_mode))
             # print(f"Item added to queue. Current queue size: {queue.qsize()}")
 
         # Wait a bit before the  next check
@@ -352,6 +400,8 @@ async def start_reading(ip_address):
         new_connection = await open_net_connection(ip_address, port=2022)
         if new_connection:
             active_connections[ip_address] = new_connection
+            reading_active[ip_address] = True
+            await listen_for_responses(ip_address)
         else:
             print(f"Failed to re-establish connection for {ip_address}")
             return
@@ -366,28 +416,10 @@ async def start_reading(ip_address):
         await start_reading_mode(reader, writer)
         print(f"Started reading mode for {ip_address}")
         reading_active[ip_address] = True
+        await listen_for_responses(ip_address)
 
         print("Listening for responses...")
-        try:
-            while reading_active[ip_address]:
-                response = await reader.read(1024)  # Wait indefinitely for data
-                if response:
-                    rfid_tag = get_rfid_tag_info(response)
-                    print(f'Received rfid tag response in hexadecimal format: {rfid_tag}')
-                    rfid_tag_response_queue.put(f"RFID tag: {rfid_tag}")
-                    # Update last response time
-                    rfid_reader_last_response_time[ip_address] = datetime.now()
-                else:
-                    # If an empty response is received, the connection was likely closed
-                    print("The connection was closed by the reader.")
-                    break
-        except Exception as e:
-            print(f"Error receiving response: {e}")
-        finally:
-            # Close the writer to ensure clean closure of the connection
-            if not writer.transport.is_closing():
-                writer.close()
-            await writer.wait_closed()
+
     else:
         print(f"No active connection for {ip_address}")
 
