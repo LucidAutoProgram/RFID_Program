@@ -282,7 +282,7 @@ async def async_update_reading_mode_in_db(ip_addresses):
                 current_time = datetime.now()
                 last_response = rfid_reader_last_response_time.get(ip_address, current_time - timedelta(minutes=3))
 
-                if (current_time - last_response).total_seconds() <= 120:  # If response received from the reader within
+                if (current_time - last_response).total_seconds() <= 20:  # If response received from the reader within
                     # last 2 minutes.
                     server_connection_params.updateReadingModeStatusInRFIDDeviceDetails('On', ip_address)  # Writing
                     # reading mode as 'On' for the reader
@@ -324,7 +324,7 @@ async def async_update_rfid_status(ip_addresses, queue):
                 # Check reading mode from the database
                 reading_mode_result = server_connection_params.findReadingModeInRFIDDeviceDetailsUsingDeviceIP(
                     ip_address)
-                reading_mode = 'On' if reading_mode_result and reading_mode_result[0][0] == 'On' else 'go'
+                reading_mode = reading_mode_result[0][0]
 
                 current_time = datetime.now()
 
@@ -336,11 +336,11 @@ async def async_update_rfid_status(ip_addresses, queue):
 
                 # Determine if a response has been received in the last 2 minutes
 
-                if reading_mode == 'On' and (current_time - last_response).total_seconds() <= 120:
+                if reading_mode == 'On' and (current_time - last_response).total_seconds() <= 20:
                     # Reading mode is On in the db and a response was received in the last 2 minutes
                     status_color = 'green'
 
-                elif reading_mode == 'On' and (current_time - last_response).total_seconds() > 120:
+                elif reading_mode == 'On' and (current_time - last_response).total_seconds() > 20:
                     # Reading mode is On in the db but no response in the last 2 minutes
                     status_color = 'yellow'
 
@@ -370,7 +370,7 @@ async def async_update_rfid_status(ip_addresses, queue):
             print(f'Status color {status_color} for {ip_address} and reading mode {reading_mode}')
 
             image_data = get_image_data(f'images/{status_color}.png', maxsize=(width, height))
-            queue.put((ip_address, image_data, reading_mode))
+            queue.put((ip_address, image_data, reading_mode, status_color))
             # print(f"Item added to queue. Current queue size: {queue.qsize()}")
 
         # Wait a bit before the  next check

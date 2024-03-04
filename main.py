@@ -1,7 +1,6 @@
 from db_operations import server_connection_params
 
 from gui import launch_gui
-from utils import start_listening_response
 
 if __name__ == '__main__':
 

@@ -8,6 +8,11 @@ from utils import create_rfid_layout, setup_async_updates, start_reading, active
 
 terminal_output = {}
 details_box = {}
+ip = None
+device_location = None
+reading_mode = None
+device_port = None
+reading_mode_status = None
 
 
 # Define create_detail_box outside of launch_gui to prevent re-creation of details_box
@@ -34,6 +39,28 @@ def terminal_window(ip):
     print(f"key created : TERMINAL_{ip}")
 
 
+# Simplified function to update summary based on current data
+def update_summary(window, active_connections, ip_addresses_with_location, rfid_ip_reading_mode):
+    online_summary_text = ""
+    offline_summary_text = ""
+
+    for ip, location in ip_addresses_with_location:
+        if ip in active_connections:
+            status_color = rfid_ip_reading_mode.get(ip, 'yellow')  # Assume yellow if unknown
+            if status_color == 'green':
+                reading_mode = "in reading mode"
+            else:
+                reading_mode = "not in reading mode"
+            online_summary_text += f"{location} (IP: {ip}) connection established {reading_mode}.\n"
+        else:
+            offline_summary_text += f"{location} (IP: {ip}) connection not established.\n"
+
+    # Update the summary terminal with online IPs at the top and offline IPs at the bottom
+    final_summary_text = online_summary_text + offline_summary_text
+    if final_summary_text.strip():
+        window['SUMMARY'].update(value=final_summary_text.strip())
+
+
 def launch_gui(ip_addresses, ip_addresses_with_location):
     """
         Function to launch the GUI panel
@@ -51,7 +78,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
     for ip, device_location in ip_addresses_with_location:
         # Fetch port and reading mode for each IP address
         device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip)
-        device_port = device_port_result[0][0] if device_port_result else 'Not availaable'
+        device_port = device_port_result[0][0] if device_port_result else 'Not available'
         reading_mode_status = rfid_ip_reading_mode.get(ip, 'Unknown')  # Default to 'Unknown' if not found
         layout = create_rfid_layout(ip, 'red', device_location, device_port, reading_mode_status)
         # Use the create_detail_box function to create the details box
@@ -70,7 +97,6 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                                                   title_color='white', relief=sg.RELIEF_SUNKEN,
                                                   background_color='black')])
 
-            # Create the columns for details and terminal and add them to the respective lists
             # Create the columns for details and terminal and add them to the respective lists
 
         details_columns.append(
@@ -196,7 +222,8 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
             rfid_response_queue = getRFIDResponseQueue()
             while not rfid_response_queue.empty():
                 rfid_response = rfid_response_queue.get_nowait()
-                window[f'TERMINAL_{last_clicked_ip}'].update(value=rfid_response + '\n', append=True)
+                if last_clicked_ip:
+                    window[f'TERMINAL_{last_clicked_ip}'].update(value=rfid_response + '\n', append=True)
 
         except Empty:
             print('Queue for rfid tag handling is empty.')
@@ -213,7 +240,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
             # print(f'Queue size in the gui {queue.qsize()}')
             while not queue.empty():
                 # print("Queue not empty")
-                ip_address, image_data, reading_mode_status = queue.get_nowait()
+                ip_address, image_data, reading_mode_status, status_color = queue.get_nowait()
                 print(f'Ip address in image updating {ip_address} and image data {image_data}')
                 window[f'IMAGE_{ip_address}'].update(data=image_data)
                 window[f'READING_MODE_{ip_address}'].update(f"Reading Mode: {reading_mode_status}")
@@ -225,22 +252,29 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                     window[f'START_{ip_address}'].update(visible=True)
                     window[f'STOP_{ip_address}'].update(visible=False)
 
-                # Separate the online and offline IP addresses
-                if ip_address in active_connections:
-                    if ip_address not in summarized_ips:
-                        location = next((loc for ip, loc in ip_addresses_with_location if ip == ip_address), "Unknown")
-                        online_summary_text += f"{location} (IP: {ip_address}) connection established\n"
-                        summarized_ips.add(ip_address)  # Add the IP address to the set
-                else:
-                    if ip_address not in summarized_ips:
-                        location = next((loc for ip, loc in ip_addresses_with_location if ip == ip_address), "Unknown")
-                        offline_summary_text += f"{location} (IP: {ip_address}) connection not established\n"
-                        summarized_ips.add(ip_address)  # Add the IP address to the set
+                update_summary(window, active_connections, ip_addresses_with_location, rfid_ip_reading_mode)
 
-            # Update the summary terminal with online IPs at the top and offline IPs at the bottom
-            final_summary_text = online_summary_text + '\n' + offline_summary_text
-            if final_summary_text.strip():
-                window['SUMMARY'].update(value=final_summary_text.strip() + '\n', append=True)
+                # # Separate the online and offline IP addresses
+                # if ip_address in active_connections:
+                #     if ip_address not in summarized_ips:
+                #         location = next((loc for ip, loc in ip_addresses_with_location if ip == ip_address), "Unknown")
+                #         if status_color == 'green':
+                #             online_summary_text += f"{location} (IP: {ip_address}) connection established and" \
+                #                                    f" is in reading mode.\n"
+                #         elif status_color == 'yellow':
+                #             online_summary_text += f"{location} (IP: {ip_address}) connection established but" \
+                #                                    f" reading mode is off.\n"
+                #         summarized_ips.add(ip_address)  # Add the IP address to the set
+                # else:
+                #     if ip_address not in summarized_ips:
+                #         location = next((loc for ip, loc in ip_addresses_with_location if ip == ip_address), "Unknown")
+                #         offline_summary_text += f"{location} (IP: {ip_address}) connection not established\n"
+                #         summarized_ips.add(ip_address)  # Add the IP address to the set
+                #
+                # # Update the summary terminal with online IPs at the top and offline IPs at the bottom
+                # final_summary_text = online_summary_text + '\n' + offline_summary_text
+                # if final_summary_text.strip():
+                #     window['SUMMARY'].update(value=final_summary_text.strip() + '\n', append=True)
 
         except Empty:
             print('Queue for rfid light check handling is empty.')
