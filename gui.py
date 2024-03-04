@@ -4,7 +4,7 @@ import PySimpleGUI as sg
 
 from db_operations import server_connection_params
 from utils import create_rfid_layout, setup_async_updates, start_reading, active_connections, stop_reading, \
-    get_global_asyncio_loop, getRFIDResponseQueue, rfid_ip_reading_mode
+    get_global_asyncio_loop, getRFIDResponseQueue,  async_start_listening_response
 
 
 def launch_gui(ip_addresses, ip_addresses_with_location):
@@ -62,14 +62,25 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
 
     # After setting up the GUI and starting the async updates
     queue = setup_async_updates(ip_addresses)
-    print(f'Queue for rfid status {queue}')
+    # print(f'Queue for rfid status {queue}')
     last_clicked_ip = None
     last_clicked = None  # To keep track of the last clicked button
     summarized_ips = set()
 
     while True:
         event, values = window.read(timeout=10)
-        asyncio.get_event_loop().run_until_complete(asyncio.sleep(0))  # Pump the asyncio event loop
+
+        # Pump the asyncio event loop to ensure it runs concurrently
+        loop = asyncio.get_event_loop()
+        if not loop.is_running():
+            # If the loop isn't running, we need to handle tasks manually
+            loop.run_until_complete(asyncio.sleep(0))  # Short sleep to pump the loop
+
+        # Check if we need to start listening to RFID responses
+        if not hasattr(window, 'listening_started') or not window.listening_started:  # If not listening started
+            asyncio.run_coroutine_threadsafe(async_start_listening_response(ip_addresses), loop)
+            window.listening_started = True  # Prevents re-starting the listener
+
         if event == sg.WINDOW_CLOSED:
             break
 
@@ -201,9 +212,9 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
             #     print('if Queue is empty')
             # else:
             #     print('if Queue is not empty')
-            print(f'Queue size in the gui {queue.qsize()}')
+            # print(f'Queue size in the gui {queue.qsize()}')
             while not queue.empty():
-                print("Queue not empty")
+                # print("Queue not empty")
                 ip_address, image_data = queue.get_nowait()
                 print(f'Ip address in image updating {ip_address} and image data {image_data}')
                 window[f'IMAGE_{ip_address}'].update(data=image_data)

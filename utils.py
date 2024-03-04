@@ -1,5 +1,4 @@
 import asyncio
-import binascii
 import io
 import platform
 from datetime import datetime, timedelta
@@ -180,7 +179,7 @@ def setup_async_updates(ip_addresses):
     # Pass IP addresses and queue to the thread
     thread = threading.Thread(target=start_asyncio_loop, args=(ip_addresses, queue), daemon=True)
     thread.start()
-    print(f'Queue in set up async updates. Current queue size : {queue.qsize()}')
+    # print(f'Queue in set up async updates. Current queue size : {queue.qsize()}')
 
     return queue
 
@@ -195,18 +194,32 @@ def get_global_asyncio_loop():
     return global_asyncio_loop
 
 
+async def async_start_listening_response(ip_addresses):
+    """
+        Async wrapper for start_listening_response function.
+    """
+    # start_listening_response(ip_addresses)
+    loop = asyncio.get_running_loop()
+    # Run the synchronous function in the default executor (ThreadPoolExecutor)
+    # This allows for the blocking call to not block the asyncio event loop
+    await loop.run_in_executor(None, start_listening_response, ip_addresses)
+
+
 def start_listening_response(ip_addresses):
     """
         Initialize listening response from all RFID readers.
     """
     global global_asyncio_loop
     if global_asyncio_loop is None:
+        print('Starting global asyncio loop')
         start_asyncio_loop(ip_addresses, Queue())  # Assuming a queue is still relevant for your design
 
     for ip_address in ip_addresses:
         if ip_address not in reading_active:  # Check if not already listening
+            print(f'Ip address in start listening response {ip_address}')
             print('Global asyncio loop in utils and in start listening tasks', global_asyncio_loop)
             asyncio.run_coroutine_threadsafe(listen_for_responses(ip_address), global_asyncio_loop)
+            reading_active[ip_address] = True
 
 
 async def listen_for_responses(ip_address):
@@ -236,8 +249,9 @@ async def listen_for_responses(ip_address):
                 rfid_reader_last_response_time[ip_address] = datetime.now()
             else:
                 # Handle connection closed
-                print(f"Connection closed by reader {ip_address}.")
-                break
+                print(f"Connection closed by reader {ip_address}. Re-establishing connection...")
+                del active_connections[ip_address]
+                return await listen_for_responses(ip_address)
             await asyncio.sleep(0.01)
         except Exception as e:
             print(f"Error listening to {ip_address}: {e}")
@@ -250,7 +264,8 @@ async def async_update_rfid_status(ip_addresses, queue):
         :param ip_addresses: List containing the ip addresses of the rfid reader.
         :param queue: Queue where to store the status of the rfid reader ip addresses.
     """
-    global active_connections, rfid_ip_reading_mode  # dictionary containing the mapping of ip address which are
+    global active_connections, rfid_ip_reading_mode, rfid_reader_last_response_time # dictionary containing the mapping
+    # of ip address which are
     # reachable with their connections.
     while True:
         # Create a list of tasks for all IP addresses
@@ -308,7 +323,7 @@ async def async_update_rfid_status(ip_addresses, queue):
 
             image_data = get_image_data(f'images/{status_color}.png', maxsize=(width, height))
             queue.put((ip_address, image_data))
-            print(f"Item added to queue. Current queue size: {queue.qsize()}")
+            # print(f"Item added to queue. Current queue size: {queue.qsize()}")
 
         # Wait a bit before the  next check
         await asyncio.sleep(1)
