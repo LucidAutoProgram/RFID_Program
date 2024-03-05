@@ -40,41 +40,12 @@ def update_tooltip(ip, window, device_location, device_port):
     # # This would be triggered by an event that changes the reading mode
     # if ip in tooltips_data:
     #     device_location, device_port = tooltips_data[ip]
-    new_reading_mode_status = rfid_ip_reading_mode.get(ip, 'Unknown')
+    new_reading_mode_status = rfid_ip_reading_mode.get(ip, 'Not Available')
+    print(new_reading_mode_status,f"new reading mode status for ip {ip} {device_location}")
     new_tooltip_text = f"IP: {ip}\nLocation: {device_location}\nPort: {device_port}\nReading Mode: " \
                        f"{new_reading_mode_status}"
     window[f'BUTTON_{ip}'].set_tooltip(new_tooltip_text)
     window.refresh()
-
-
-# Define create_detail_box outside of launch_gui to prevent re-creation of details_box
-def create_detail_box(ip, details_box):
-    """
-        Function to create details box containing details of the rfid reader.
-        :param ip: Ip address of the rfid reader.
-        :param details_box: Box containing details of the reader.
-    """
-    details_box[ip] = sg.Column([
-        [sg.Text('DEVICE DETAILS', background_color='black', text_color='white', font=('Cambria', 17),
-                 justification='center')],
-        [sg.Text('Device IP:', background_color='black', text_color='white', key=f'DEVICE_IP_{ip}')],
-        [sg.Text('Device Port:', background_color='black', text_color='white', key=f'DEVICE_PORT_{ip}')],
-        [sg.Text('Device Location:', background_color='black', text_color='white', key=f'DEVICE_LOCATION_{ip}')],
-        [sg.Text('Reading Mode:', background_color='black', text_color='white', key=f'READING_MODE_{ip}')],
-        [sg.Button('Start', key=f'START_{ip}'), sg.Button('Stop', key=f'STOP_{ip}')],
-    ], key=f'DETAILS_BOX_{ip}', background_color='black', visible=False, pad=((0, 0), (0, 0)), expand_x=True,
-        expand_y=True)
-
-
-def terminal_window(ip, terminal_output):
-    """
-        Function for creating terminal window.
-        :param ip: Ip address of the rfid reader.
-        :param terminal_output: Output in the terminal
-    """
-    terminal_output[ip] = sg.Multiline(default_text='', size=(30, 5), key=f'TERMINAL_{ip}', autoscroll=True,
-                                       disabled=True,
-                                       visible=False, expand_x=True, expand_y=True, background_color='black')
 
 
 # Simplified function to update summary based on current data
@@ -433,8 +404,8 @@ async def async_update_rfid_status(ip_addresses, queue):
                         active_connections[ip_address] = (reader, writer)
                         print(f"Connection established for {ip_address}")
             else:
-                reading_mode = 'Unknown'
-                rfid_ip_reading_mode[ip_address] = 'Unknown'
+                reading_mode = 'Not Available'
+                rfid_ip_reading_mode[ip_address] = 'Not Available'
                 # If the IP address goes offline, remove it from active connections
                 if ip_address in active_connections:
                     del active_connections[ip_address]
