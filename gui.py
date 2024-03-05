@@ -251,8 +251,6 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
             pass  # Handle empty queue if necessary
         # Check if there are updates from the async task
         try:
-            online_summary_text = ""
-            offline_summary_text = ""
             # print(f'Queue at top while loop {queue}')
             # if queue.empty():
             #     print('if Queue is empty')
