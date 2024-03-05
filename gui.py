@@ -56,9 +56,11 @@ def terminal_window(ip):
 # Simplified function to update summary based on current data
 def update_summary(window, active_connections, ip_addresses_with_location, status_color):
     """
-        Function to display the summary of all the rfid readers in the terminal box, it will show whether reader is connectable or not, in reader mode or not.
+        Function to display the summary of all the rfid readers in the terminal box, it will show whether reader is
+        connectable or not, in reader mode or not.
         :param window: Window of the gui.
-        :param active_connections: Dictionary containing the ip address with the value True or False based on whether they are connected or not.
+        :param active_connections: Dictionary containing the ip address with the value True or False based on whether
+         they are connected or not.
         :param ip_addresses_with_location: Tuple containing the ip address with their location.
         :param status_color: Color of the light (green/yellow/red) based on its status.
     """
@@ -68,10 +70,10 @@ def update_summary(window, active_connections, ip_addresses_with_location, statu
     for ip, location in ip_addresses_with_location:
         if ip in active_connections:
             if status_color == 'green':
-                reading_mode = "reading mode is on"
+                read_mode = "reading mode is on"
             else:
-                reading_mode = "reading mode is off"
-            online_summary_text += f"{location} (IP: {ip}) connection established and {reading_mode}.\n"
+                read_mode = "reading mode is off"
+            online_summary_text += f"{location} (IP: {ip}) connection established and {read_mode}.\n"
         else:
             offline_summary_text += f"{location} (IP: {ip}) connection not established.\n"
 
@@ -139,7 +141,6 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
     # print(f'Queue for rfid status {queue}')
     last_clicked_ip = None
     last_clicked = None  # To keep track of the last clicked button
-    summarized_ips = set()
 
     while True:
         event, values = window.read(timeout=10)
@@ -258,12 +259,12 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
             # print(f'Queue size in the gui {queue.qsize()}')
             while not queue.empty():
                 # print("Queue not empty")
-                ip_address, image_data, reading_mode, status_color = queue.get_nowait()
+                ip_address, image_data, reading_mode_from_queue, status_color = queue.get_nowait()
                 print(f'Ip address in image updating {ip_address} and image data {image_data}')
                 window[f'IMAGE_{ip_address}'].update(data=image_data)
-                window[f'READING_MODE_{ip_address}'].update(f"Reading Mode: {reading_mode}")
+                window[f'READING_MODE_{ip_address}'].update(f"Reading Mode: {reading_mode_from_queue}")
 
-                if reading_mode == 'On':
+                if reading_mode_from_queue == 'On':
                     window[f'START_{ip_address}'].update(visible=False)
                     window[f'STOP_{ip_address}'].update(visible=True)
                 else:

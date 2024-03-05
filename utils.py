@@ -349,8 +349,10 @@ async def async_update_rfid_status(ip_addresses, queue):
 
                 if status_color == 'green':
                     reading_mode = 'On'
+                    rfid_ip_reading_mode[ip_address] = reading_mode
                 else:
                     reading_mode = 'Off'
+                    rfid_ip_reading_mode[ip_address] = reading_mode
                 # Check if connection is already established
                 if ip_address not in active_connections:
                     reader, writer = await open_net_connection(ip_address, port=2022)  # Adjust port as needed
@@ -362,9 +364,6 @@ async def async_update_rfid_status(ip_addresses, queue):
                 if ip_address in active_connections:
                     del active_connections[ip_address]
                     print(f"Connection closed for {ip_address}")
-
-            # Update the ip_status_colors dictionary with the current status color
-            rfid_ip_reading_mode[ip_address] = status_color
 
             print(f'Status color {status_color} for {ip_address} and reading mode {reading_mode}')
 
