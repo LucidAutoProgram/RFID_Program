@@ -21,9 +21,90 @@ reading_active = {}  # This dictionary keeps track of the ip addresses of the rf
 rfid_tag_response_queue = Queue()  # Queue to store rfid tag response.
 rfid_ip_reading_mode = {}  # Dictionary to store the ip address with their reading mode status ('On' or 'Off')
 rfid_reader_last_response_time = {}  # # Dictionary to track the last response time for each IP (rfid reader).
+rfid_ip_status_color = {}  # Dictionary to store the ip address of the reader as the key and its status color
+# (green/yellow/red) as value
+stop_button_clicked = False  # To keep track of whether clicked on the stop button or not.
 
 
 # -------------------- Functions ------------------------------------
+
+
+def update_tooltip(ip, window, device_location, device_port):
+    """
+        Function to update tooltip
+        :param ip: Ip address of the rfid reader.
+        :param window:  Window of the gui.
+        :param device_location: Location of the rfid reader.
+        :param device_port: Port of the rfid reader.
+    """
+    # This would be triggered by an event that changes the reading mode
+    new_reading_mode_status = rfid_ip_reading_mode.get(ip, 'Unknown')  # Make sure this gets updated elsewhere in your
+    # code
+    new_tooltip_text = f"IP: {ip}\nLocation: {device_location}\nPort: {device_port}\nReading Mode: " \
+                       f"{new_reading_mode_status}"
+    window[f'BUTTON_{ip}'].set_tooltip(new_tooltip_text)
+    window.refresh()
+
+
+# Define create_detail_box outside of launch_gui to prevent re-creation of details_box
+def create_detail_box(ip, details_box):
+    """
+        Function to create details box containing details of the rfid reader.
+        :param ip: Ip address of the rfid reader.
+        :param details_box: Box containing details of the reader.
+    """
+    details_box[ip] = sg.Column([
+        [sg.Text('DEVICE DETAILS', background_color='black', text_color='white', font=('Cambria', 17),
+                 justification='center')],
+        [sg.Text('Device IP:', background_color='black', text_color='white', key=f'DEVICE_IP_{ip}')],
+        [sg.Text('Device Port:', background_color='black', text_color='white', key=f'DEVICE_PORT_{ip}')],
+        [sg.Text('Device Location:', background_color='black', text_color='white', key=f'DEVICE_LOCATION_{ip}')],
+        [sg.Text('Reading Mode:', background_color='black', text_color='white', key=f'READING_MODE_{ip}')],
+        [sg.Button('Start', key=f'START_{ip}'), sg.Button('Stop', key=f'STOP_{ip}')],
+    ], key=f'DETAILS_BOX_{ip}', background_color='black', visible=False, pad=((0, 0), (0, 0)), expand_x=True,
+        expand_y=True)
+
+
+def terminal_window(ip, terminal_output):
+    """
+        Function for creating terminal window.
+        :param ip: Ip address of the rfid reader.
+        :param terminal_output: Output in the terminal
+    """
+    terminal_output[ip] = sg.Multiline(default_text='', size=(30, 5), key=f'TERMINAL_{ip}', autoscroll=True,
+                                       disabled=True,
+                                       visible=False, expand_x=True, expand_y=True, background_color='black')
+
+
+# Simplified function to update summary based on current data
+def update_summary(window, active_connections, ip_addresses_with_location, ip_status_color):
+    """
+        Function to display the summary of all the rfid readers in the terminal box, it will show whether reader is
+        connectable or not, in reader mode or not.
+        :param window: Window of the gui.
+        :param active_connections: Dictionary containing the ip address with the value True or False based on whether
+         they are connected or not.
+        :param ip_addresses_with_location: Tuple containing the ip address with their location.
+        :param ip_status_color: Ip with its status color i.e. color of the light (green/yellow/red) based on its status.
+    """
+    online_summary_text = ""
+    offline_summary_text = ""
+
+    for ip, location in ip_addresses_with_location:
+        if ip in active_connections:
+            status_color = ip_status_color.get(ip, 'yellow')  # Assume yellow if unknown
+            if status_color == 'green':
+                read_mode = "[ONLINE] Reading mode is ON"
+            else:
+                read_mode = "[ONLINE] Reading mode is OFF"
+            online_summary_text += f"{location} (IP: {ip}) {read_mode}\n\n"
+        else:
+            offline_summary_text += f"{location} (IP: {ip}) [OFFLINE] Connection not established\n\n"
+
+    # Update the summary terminal with online IPs at the top and offline IPs at the bottom
+    final_summary_text = online_summary_text + offline_summary_text
+    if final_summary_text.strip():
+        window['SUMMARY'].update(value=final_summary_text.strip())
 
 
 def get_image_data(file, maxsize=(width, height)):
@@ -41,14 +122,14 @@ def get_image_data(file, maxsize=(width, height)):
     return data
 
 
-def create_rfid_layout(ip, status_color, device_location, port, reading_mode):
+def create_rfid_layout(ip, status_color, device_location, port):
     """
-    Generating layout for each RFID box with location instead of IP on the button. :param ip: Ip address of the rfid
-    reader.
+    Generating layout for each RFID box with location instead of IP on the button.
+    :param ip: Ip address of the rfid reader.
     :param status_color: Color to display based on the status of rfid reader (red for unreachable rfid
     reader, yellow for reachable reader and green for reader which is reachable and in reading mode).
     :param device_location: Location of the rfid reader where it is placed.
-    :param reading_mode: Mode of the reader whether it is readaing or not.
+    :param port: Port of the rfid reader.
     :return: Image and button displaying the status of the rfid and its location.
     """
     reading_mode_status = rfid_ip_reading_mode.get(ip, 'Unknown')
@@ -218,13 +299,10 @@ def start_listening_response(ip_addresses):
     """
     global global_asyncio_loop
     if global_asyncio_loop is None:
-        print('Starting global asyncio loop')
         start_asyncio_loop(ip_addresses, Queue())  # Assuming a queue is still relevant for your design
 
     for ip_address in ip_addresses:
         if ip_address not in reading_active:  # Check if not already listening
-            print(f'Ip address in start listening response {ip_address}')
-            print('Global asyncio loop in utils and in start listening tasks', global_asyncio_loop)
             asyncio.run_coroutine_threadsafe(listen_for_responses(ip_address), global_asyncio_loop)
             reading_active[ip_address] = True
 
@@ -235,8 +313,6 @@ async def listen_for_responses(ip_address):
     """
     global active_connections, rfid_reader_last_response_time, reading_active
     # Ensure a connection is established
-    print(f'Value of reading active before {ip_address} - {reading_active[ip_address]}')
-    print(f'Active connections before - {active_connections}')
     if ip_address not in active_connections:
         reader, writer = await open_net_connection(ip_address, port=2022)
         if reader and writer:
@@ -247,10 +323,7 @@ async def listen_for_responses(ip_address):
             print(f"Failed to establish connection for listening on {ip_address}")
             return
 
-    print(f'Active connections after - {active_connections}')
-
     reader, _ = active_connections[ip_address]
-    print(f'Value of reading active after {ip_address} - {reading_active[ip_address]}')
     while reading_active[ip_address]:  # If the reader is in reading mode.
         try:
             response = await reader.read(1024)
@@ -276,14 +349,15 @@ async def async_update_reading_mode_in_db(ip_addresses):
         minutes. If it receives a response then updating Reading_Mode as 'On' else 'Off'
         :param ip_addresses: The Ip address of the rfid reader.
     """
+    global stop_button_clicked
     while True:
         for ip_address in ip_addresses:
             try:
                 current_time = datetime.now()
                 last_response = rfid_reader_last_response_time.get(ip_address, current_time - timedelta(minutes=3))
 
-                if (current_time - last_response).total_seconds() <= 120:  # If response received from the reader within
-                    # last 2 minutes.
+                if stop_button_clicked is False and (current_time - last_response).total_seconds() <= 120:
+                    # If response received from the reader within last 2 minutes and stop button is not clicked.
                     server_connection_params.updateReadingModeStatusInRFIDDeviceDetails('On', ip_address)  # Writing
                     # reading mode as 'On' for the reader
                     print(f'Updated reading mode to On for {ip_address}')
@@ -293,7 +367,6 @@ async def async_update_reading_mode_in_db(ip_addresses):
                     print(f'Updated reading mode to Off for {ip_address}')
 
             except Exception as e:
-
                 print(f"Error updating reading mode status for {ip_address}: {e}")
 
         await asyncio.sleep(9)  # Wait for 5 seconds for next response check
@@ -305,8 +378,7 @@ async def async_update_rfid_status(ip_addresses, queue):
         :param ip_addresses: List containing the ip addresses of the rfid reader.
         :param queue: Queue where to store the status of the rfid reader ip addresses.
     """
-    global active_connections, rfid_ip_reading_mode, rfid_reader_last_response_time  # dictionary containing the mapping
-    # of ip address which are reachable with their connections.
+    global active_connections, rfid_ip_reading_mode, rfid_reader_last_response_time, rfid_ip_status_color
     while True:
         # Create a list of tasks for all IP addresses
         tasks = [rfid_connectivity_checker(ip) for ip in ip_addresses]
@@ -365,10 +437,11 @@ async def async_update_rfid_status(ip_addresses, queue):
                     del active_connections[ip_address]
                     print(f"Connection closed for {ip_address}")
 
-            print(f'Status color {status_color} for {ip_address} and reading mode {reading_mode}')
+            # Update the rfid_ip_status_color dictionary with the current status color
+            rfid_ip_status_color[ip_address] = status_color
 
             image_data = get_image_data(f'images/{status_color}.png', maxsize=(width, height))
-            queue.put((ip_address, image_data, reading_mode, status_color))
+            queue.put((ip_address, image_data, reading_mode, rfid_ip_status_color))
             # print(f"Item added to queue. Current queue size: {queue.qsize()}")
 
         # Wait a bit before the  next check
@@ -389,7 +462,8 @@ async def start_reading(ip_address):
         Function to start the rfid reading on the start button press.
         :param ip_address: Ip address of the device to start the reading mode for.
     """
-    global reading_active, active_connections, rfid_reader_last_response_time
+    global reading_active, active_connections, rfid_reader_last_response_time, stop_button_clicked
+    stop_button_clicked = False
     connection = active_connections.get(ip_address)
 
     if not connection or connection[0]._transport.is_closing() or connection[1]._transport.is_closing():
@@ -409,7 +483,6 @@ async def start_reading(ip_address):
         print(f"No valid connection for {ip_address}")
         return
 
-    print(f'Ip address {ip_address} with connection - {connection}')
     if active_connections[ip_address]:  # If the connection is established only then
         await start_reading_mode(reader, writer)
         print(f"Started reading mode for {ip_address}")
@@ -426,6 +499,8 @@ async def stop_reading(ip_address):
     """
         :param ip_address: Ip address of the device to start the reading mode for.
     """
+    global stop_button_clicked
+    stop_button_clicked = True
     connection = active_connections.get(ip_address)
     if connection:
         _, writer = connection
