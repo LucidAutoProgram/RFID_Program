@@ -6,6 +6,9 @@ from db_operations import server_connection_params
 from utils import create_rfid_layout, setup_async_updates, start_reading, active_connections, stop_reading, \
     get_global_asyncio_loop, getRFIDResponseQueue, async_start_listening_response, rfid_ip_reading_mode
 
+
+# --------------------- Global Variables ---------------------------------
+
 terminal_output = {}
 details_box = {}
 ip = None
@@ -17,7 +20,14 @@ reading_mode_status = None
 
 # Define create_detail_box outside of launch_gui to prevent re-creation of details_box
 def create_detail_box(ip, location, port, mode):
-    global details_box  # Ensures that we're referring to the global dictionary
+    """
+        Function to create details box containing details of the rfid reader.
+        :param ip: Ip address of the rfid reader.
+        :param location: Location of the rfid reader.
+        :param port: port of the rfid reader.
+        :param mode: Reading mode of the rfid reader (On/Off).
+    """
+    global details_box 
     details_box[ip] = sg.Column([
         [sg.Text('DEVICE DETAILS', background_color='black', text_color='white', font=('Cambria', 17),
                  justification='center')],
@@ -32,6 +42,10 @@ def create_detail_box(ip, location, port, mode):
 
 
 def terminal_window(ip):
+    """
+        Function for creating terminal window.
+        :param ip: Ip address of the rfid reader.
+    """
     global terminal_output
     terminal_output[ip] = sg.Multiline(default_text='', size=(30, 5), key=f'TERMINAL_{ip}', autoscroll=True,
                                        disabled=True,
@@ -41,6 +55,13 @@ def terminal_window(ip):
 
 # Simplified function to update summary based on current data
 def update_summary(window, active_connections, ip_addresses_with_location, rfid_ip_reading_mode):
+    """
+        Function to display the summary of all the rfid readers in the terminal box, it will show whether reader is connectable or not, in reader mode or not.
+        :param window: Window of the gui.
+        :param active_connections: Dictionary containing the ip address with the value True or False based on whether they are connected or not.
+        :param ip_addresses_with_location: Tuple containing the ip address with their location.
+        :param rfid_ip_reading_mode: Reading mode of the rfid reader(On/Off).
+    """
     online_summary_text = ""
     offline_summary_text = ""
 
@@ -48,10 +69,10 @@ def update_summary(window, active_connections, ip_addresses_with_location, rfid_
         if ip in active_connections:
             status_color = rfid_ip_reading_mode.get(ip, 'yellow')  # Assume yellow if unknown
             if status_color == 'green':
-                reading_mode = "in reading mode"
+                reading_mode = "reading mode is on"
             else:
-                reading_mode = "not in reading mode"
-            online_summary_text += f"{location} (IP: {ip}) connection established {reading_mode}.\n"
+                reading_mode = "reading mode is off"
+            online_summary_text += f"{location} (IP: {ip}) connection established and {reading_mode}.\n"
         else:
             offline_summary_text += f"{location} (IP: {ip}) connection not established.\n"
 
@@ -64,6 +85,8 @@ def update_summary(window, active_connections, ip_addresses_with_location, rfid_
 def launch_gui(ip_addresses, ip_addresses_with_location):
     """
         Function to launch the GUI panel
+        :param ip_addresses: List of ip addresses of the rfid reader.
+        :param ip_addresses_with_location: Tuple containing the ip address with its location.
     """
     global terminal_output, details_box, ip, device_location, device_port, reading_mode, reading_mode_status
     sg.theme('DarkGrey12')
@@ -74,7 +97,6 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
     details_columns = []
     terminal_columns = []
 
-    # Inside the loop where you create GUI elements for each IP address
     for ip, device_location in ip_addresses_with_location:
         # Fetch port and reading mode for each IP address
         device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip)
@@ -97,8 +119,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                                                   title_color='white', relief=sg.RELIEF_SUNKEN,
                                                   background_color='black')])
 
-            # Create the columns for details and terminal and add them to the respective lists
-
+        # Creating the columns for details and terminal and add them to the respective lists
         details_columns.append(
             sg.Column([[details_box[ip]]], expand_x=True, expand_y=True, pad=((10, 0), (0, 0))))
         terminal_columns.append(sg.Column([[terminal_output[ip]]], expand_x=True, expand_y=True, pad=((0, 10), (0, 0))))
@@ -240,7 +261,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
             # print(f'Queue size in the gui {queue.qsize()}')
             while not queue.empty():
                 # print("Queue not empty")
-                ip_address, image_data, reading_mode_status, status_color = queue.get_nowait()
+                ip_address, image_data, reading_mode_status = queue.get_nowait()
                 print(f'Ip address in image updating {ip_address} and image data {image_data}')
                 window[f'IMAGE_{ip_address}'].update(data=image_data)
                 window[f'READING_MODE_{ip_address}'].update(f"Reading Mode: {reading_mode_status}")
@@ -254,31 +275,8 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
 
                 update_summary(window, active_connections, ip_addresses_with_location, rfid_ip_reading_mode)
 
-                # # Separate the online and offline IP addresses
-                # if ip_address in active_connections:
-                #     if ip_address not in summarized_ips:
-                #         location = next((loc for ip, loc in ip_addresses_with_location if ip == ip_address), "Unknown")
-                #         if status_color == 'green':
-                #             online_summary_text += f"{location} (IP: {ip_address}) connection established and" \
-                #                                    f" is in reading mode.\n"
-                #         elif status_color == 'yellow':
-                #             online_summary_text += f"{location} (IP: {ip_address}) connection established but" \
-                #                                    f" reading mode is off.\n"
-                #         summarized_ips.add(ip_address)  # Add the IP address to the set
-                # else:
-                #     if ip_address not in summarized_ips:
-                #         location = next((loc for ip, loc in ip_addresses_with_location if ip == ip_address), "Unknown")
-                #         offline_summary_text += f"{location} (IP: {ip_address}) connection not established\n"
-                #         summarized_ips.add(ip_address)  # Add the IP address to the set
-                #
-                # # Update the summary terminal with online IPs at the top and offline IPs at the bottom
-                # final_summary_text = online_summary_text + '\n' + offline_summary_text
-                # if final_summary_text.strip():
-                #     window['SUMMARY'].update(value=final_summary_text.strip() + '\n', append=True)
-
         except Empty:
             print('Queue for rfid light check handling is empty.')
             pass
     window.refresh()
-
     window.close()
