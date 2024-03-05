@@ -369,7 +369,7 @@ async def async_update_rfid_status(ip_addresses, queue):
             print(f'Status color {status_color} for {ip_address} and reading mode {reading_mode}')
 
             image_data = get_image_data(f'images/{status_color}.png', maxsize=(width, height))
-            queue.put((ip_address, image_data, reading_mode))
+            queue.put((ip_address, image_data, reading_mode, status_color))
             # print(f"Item added to queue. Current queue size: {queue.qsize()}")
 
         # Wait a bit before the  next check

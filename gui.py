@@ -15,7 +15,7 @@ ip = None
 device_location = None
 reading_mode = None
 device_port = None
-reading_mode_status = None
+reading_mode_status = None  # Dictionary containing the ip as the key and its status i.e. reading mode(On/Off) as value 
 
 
 # Define create_detail_box outside of launch_gui to prevent re-creation of details_box
@@ -54,20 +54,19 @@ def terminal_window(ip):
 
 
 # Simplified function to update summary based on current data
-def update_summary(window, active_connections, ip_addresses_with_location, rfid_ip_reading_mode):
+def update_summary(window, active_connections, ip_addresses_with_location, status_color):
     """
         Function to display the summary of all the rfid readers in the terminal box, it will show whether reader is connectable or not, in reader mode or not.
         :param window: Window of the gui.
         :param active_connections: Dictionary containing the ip address with the value True or False based on whether they are connected or not.
         :param ip_addresses_with_location: Tuple containing the ip address with their location.
-        :param rfid_ip_reading_mode: Reading mode of the rfid reader(On/Off).
+        :param status_color: Color of the light (green/yellow/red) based on its status.
     """
     online_summary_text = ""
     offline_summary_text = ""
 
     for ip, location in ip_addresses_with_location:
         if ip in active_connections:
-            status_color = rfid_ip_reading_mode.get(ip, 'yellow')  # Assume yellow if unknown
             if status_color == 'green':
                 reading_mode = "reading mode is on"
             else:
@@ -259,19 +258,19 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
             # print(f'Queue size in the gui {queue.qsize()}')
             while not queue.empty():
                 # print("Queue not empty")
-                ip_address, image_data, reading_mode_status = queue.get_nowait()
+                ip_address, image_data, reading_mode, status_color = queue.get_nowait()
                 print(f'Ip address in image updating {ip_address} and image data {image_data}')
                 window[f'IMAGE_{ip_address}'].update(data=image_data)
-                window[f'READING_MODE_{ip_address}'].update(f"Reading Mode: {reading_mode_status}")
+                window[f'READING_MODE_{ip_address}'].update(f"Reading Mode: {reading_mode}")
 
-                if reading_mode_status == 'On':
+                if reading_mode == 'On':
                     window[f'START_{ip_address}'].update(visible=False)
                     window[f'STOP_{ip_address}'].update(visible=True)
                 else:
                     window[f'START_{ip_address}'].update(visible=True)
                     window[f'STOP_{ip_address}'].update(visible=False)
 
-                update_summary(window, active_connections, ip_addresses_with_location, rfid_ip_reading_mode)
+                update_summary(window, active_connections, ip_addresses_with_location, status_color)
 
         except Empty:
             print('Queue for rfid light check handling is empty.')
