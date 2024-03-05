@@ -228,6 +228,8 @@ class DatabaseOperations:
                 db_connection.close()
 
 
+# ----------------------- Creating the connection ---------------------
+
 server_connection_params = DatabaseOperations(
     host_ip='192.168.10.1',
     host_username='LucidAuto',
@@ -239,15 +241,3 @@ server_connection_params = DatabaseOperations(
     db_pool_size=5
 )
 
-# device_ips = server_connection_params.findAllDeviceIPInRFIDDeviceDetails()
-# if device_ips:
-#     print(f"Device IPs: {device_ips}")
-#     for ip in device_ips:
-#         device_port = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip[0])
-#         print(f'Device Port for {ip[0]} - {device_port}')
-#         device_location = server_connection_params.findDeviceLocationInRFIDDeviceDetailsUsingDeviceIP(ip[0])
-#         print(f'Device Location for {ip[0]} is {device_location}')
-#         reading_mode = server_connection_params.findReadingModeInRFIDDeviceDetailsUsingDeviceIP(ip[0])
-#         print(f'Reading mode for {ip[0]} is {reading_mode}')
-# else:
-#     print("Device IPs could not be found or an error occurred.")

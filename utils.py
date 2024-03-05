@@ -32,14 +32,15 @@ stop_button_clicked = False  # To keep track of whether clicked on the stop butt
 def update_tooltip(ip, window, device_location, device_port):
     """
         Function to update tooltip
+        :param device_port:
+        :param device_location:
         :param ip: Ip address of the rfid reader.
         :param window:  Window of the gui.
-        :param device_location: Location of the rfid reader.
-        :param device_port: Port of the rfid reader.
     """
-    # This would be triggered by an event that changes the reading mode
-    new_reading_mode_status = rfid_ip_reading_mode.get(ip, 'Unknown')  # Make sure this gets updated elsewhere in your
-    # code
+    # # This would be triggered by an event that changes the reading mode
+    # if ip in tooltips_data:
+    #     device_location, device_port = tooltips_data[ip]
+    new_reading_mode_status = rfid_ip_reading_mode.get(ip, 'Unknown')
     new_tooltip_text = f"IP: {ip}\nLocation: {device_location}\nPort: {device_port}\nReading Mode: " \
                        f"{new_reading_mode_status}"
     window[f'BUTTON_{ip}'].set_tooltip(new_tooltip_text)
@@ -432,6 +433,8 @@ async def async_update_rfid_status(ip_addresses, queue):
                         active_connections[ip_address] = (reader, writer)
                         print(f"Connection established for {ip_address}")
             else:
+                reading_mode = 'Unknown'
+                rfid_ip_reading_mode[ip_address] = 'Unknown'
                 # If the IP address goes offline, remove it from active connections
                 if ip_address in active_connections:
                     del active_connections[ip_address]
