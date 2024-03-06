@@ -121,6 +121,8 @@ def interpret_response_status(status_code):
 async def start_reading_mode(reader, writer, inv_type=0x00, inv_param=0):
     """
         Asynchronously sends a command to start the RFID reading mode and continuously reads responses.
+        :param reader: For reading the response from the rfid reader.
+        :param writer: Connection established.
     """
     command_bytes = [0xCF, 0xFF, 0x00, 0x01, 0x05, inv_type] + list(inv_param.to_bytes(4, byteorder='little'))
     crc16 = crc16_cal(bytes(command_bytes))  # Assuming crc16_cal is defined elsewhere

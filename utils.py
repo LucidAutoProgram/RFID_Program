@@ -12,9 +12,8 @@ from rfid_api import open_net_connection, start_reading_mode, stop_reading_mode
 
 # -------------------- Global Variables declarations ------------------
 
-# Setting the desired width and height of image
-width = 15
-height = 15
+width = 15  # Width of the image 
+height = 15  # Height of the image
 active_connections = {}  # Global storage for active connections
 global_asyncio_loop = None
 reading_active = {}  # This dictionary keeps track of the ip addresses of the rfid readers which are in reading mode.
@@ -31,15 +30,12 @@ stop_button_clicked = False  # To keep track of whether clicked on the stop butt
 
 def update_tooltip(ip, window, device_location, device_port):
     """
-        Function to update tooltip
+        Function to update tooltip message if their is any upddate.
         :param device_port:
         :param device_location:
         :param ip: Ip address of the rfid reader.
         :param window:  Window of the gui.
     """
-    # # This would be triggered by an event that changes the reading mode
-    # if ip in tooltips_data:
-    #     device_location, device_port = tooltips_data[ip]
     new_reading_mode_status = rfid_ip_reading_mode.get(ip, 'Not Available')
     print(new_reading_mode_status,f"new reading mode status for ip {ip} {device_location}")
     new_tooltip_text = f"IP: {ip}\nLocation: {device_location}\nPort: {device_port}\nReading Mode: " \
@@ -48,7 +44,23 @@ def update_tooltip(ip, window, device_location, device_port):
     window.refresh()
 
 
-# Simplified function to update summary based on current data
+def get_device_details(ip):
+    """
+        Function to get the rfid reader details.
+        :param ip: Ip address of the rfid reader
+    """
+    device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip)
+    port = device_port_result[0][0] if device_port_result else 'Not available'
+
+    device_location_result = server_connection_params.findDeviceLocationInRFIDDeviceDetailsUsingDeviceIP(ip)
+    location = device_location_result[0][0] if device_location_result else 'Not available'
+
+    return {
+        'port': port,
+        'location': location
+    }
+
+
 def update_summary(window, active_connections, ip_addresses_with_location, ip_status_color):
     """
         Function to display the summary of all the rfid readers in the terminal box, it will show whether reader is
@@ -169,10 +181,10 @@ def get_rfid_tag_info(response):
 
 def start_asyncio_loop(ip_addresses, queue):
     """
-    This function is for performing the asynchronous tasks with the synchronous tasks like with the GUI to run them
-    async tasks smoothly.
-    :param ip_addresses: List of the ip addresses of the rfid reader.
-    :param queue: Queue to store the status of the rfid reader.
+        This function is for performing the asynchronous tasks with the synchronous tasks like with the GUI to run them
+        async tasks smoothly.
+        :param ip_addresses: List of the ip addresses of the rfid reader.
+        :param queue: Queue to store the status of the rfid reader.
     """
     # Access the global variable to store the event loop reference for later access across the application.
     global global_asyncio_loop
@@ -231,7 +243,7 @@ def setup_async_updates(ip_addresses):
         :param ip_addresses: A list of IP addresses for RFID readers to monitor.
 
         :return:
-            A queue.Queue instance that will be used to communicate updates back to the main thread,
+            Queue instance that will be used to communicate updates back to the main thread,
             typically to update the GUI with the status of each RFID reader.
     """
     queue = Queue()
@@ -239,8 +251,6 @@ def setup_async_updates(ip_addresses):
     # Pass IP addresses and queue to the thread
     thread = threading.Thread(target=start_asyncio_loop, args=(ip_addresses, queue), daemon=True)
     thread.start()
-    # print(f'Queue in set up async updates. Current queue size : {queue.qsize()}')
-
     return queue
 
 
@@ -257,8 +267,8 @@ def get_global_asyncio_loop():
 async def async_start_listening_response(ip_addresses):
     """
         Async wrapper for start_listening_response function.
+        :param ip_addresses: List of the ip addresses of the rfid readers.
     """
-    # start_listening_response(ip_addresses)
     loop = asyncio.get_running_loop()
     # Run the synchronous function in the default executor (ThreadPoolExecutor)
     # This allows for the blocking call to not block the asyncio event loop
@@ -268,6 +278,7 @@ async def async_start_listening_response(ip_addresses):
 def start_listening_response(ip_addresses):
     """
         Initialize listening response from all RFID readers.
+        :param ip_addresses: List of the ip addresses of the rfid readers.
     """
     global global_asyncio_loop
     if global_asyncio_loop is None:
@@ -282,6 +293,7 @@ def start_listening_response(ip_addresses):
 async def listen_for_responses(ip_address):
     """
         Continuously listen for responses from an RFID reader.
+        :param ip_address: Ip address of the rfid reader for which to listen response.
     """
     global active_connections, rfid_reader_last_response_time, reading_active
     # Ensure a connection is established
@@ -318,8 +330,8 @@ async def listen_for_responses(ip_address):
 async def async_update_reading_mode_in_db(ip_addresses):
     """
         This function is for updating the Reading_Mode in the database based on the response received within last 2
-        minutes. If it receives a response then updating Reading_Mode as 'On' else 'Off'
-        :param ip_addresses: The Ip address of the rfid reader.
+        minutes. If it receives a response and stop button is not clicked then updating Reading_Mode as 'On' else 'Off'
+        :param ip_addresses: The list of ip addresses of the rfid reader.
     """
     global stop_button_clicked
     while True:
@@ -341,7 +353,7 @@ async def async_update_reading_mode_in_db(ip_addresses):
             except Exception as e:
                 print(f"Error updating reading mode status for {ip_address}: {e}")
 
-        await asyncio.sleep(9)  # Wait for 5 seconds for next response check
+        await asyncio.sleep(9)  # Wait for 9 seconds for next response check
 
 
 async def async_update_rfid_status(ip_addresses, queue):
@@ -397,6 +409,7 @@ async def async_update_rfid_status(ip_addresses, queue):
                 else:
                     reading_mode = 'Off'
                     rfid_ip_reading_mode[ip_address] = reading_mode
+                    
                 # Check if connection is already established
                 if ip_address not in active_connections:
                     reader, writer = await open_net_connection(ip_address, port=2022)  # Adjust port as needed
@@ -406,7 +419,8 @@ async def async_update_rfid_status(ip_addresses, queue):
             else:
                 reading_mode = 'Not Available'
                 rfid_ip_reading_mode[ip_address] = 'Not Available'
-                # If the IP address goes offline, remove it from active connections
+
+                # If the IP address goes offline, remove it from active connections dictionary
                 if ip_address in active_connections:
                     del active_connections[ip_address]
                     print(f"Connection closed for {ip_address}")
@@ -416,7 +430,6 @@ async def async_update_rfid_status(ip_addresses, queue):
 
             image_data = get_image_data(f'images/{status_color}.png', maxsize=(width, height))
             queue.put((ip_address, image_data, reading_mode, rfid_ip_status_color))
-            # print(f"Item added to queue. Current queue size: {queue.qsize()}")
 
         # Wait a bit before the  next check
         await asyncio.sleep(1)
@@ -471,7 +484,8 @@ async def start_reading(ip_address):
 
 async def stop_reading(ip_address):
     """
-        :param ip_address: Ip address of the device to start the reading mode for.
+        Function to stop the reading for a rfid device.
+        :param ip_address: Ip address of the device to stop the reading mode for.
     """
     global stop_button_clicked
     stop_button_clicked = True

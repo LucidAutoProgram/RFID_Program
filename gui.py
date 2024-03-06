@@ -5,31 +5,16 @@ import PySimpleGUI as sg
 from db_operations import server_connection_params
 from utils import create_rfid_layout, setup_async_updates, start_reading, active_connections, stop_reading, \
     get_global_asyncio_loop, getRFIDResponseQueue, async_start_listening_response, rfid_ip_reading_mode, \
-    update_tooltip, update_summary
+    update_tooltip, update_summary, get_device_details
 
 # --------------------- Global Variables ---------------------------------
 
-terminal_output = {}
-details_box = {}
-ip = None
-device_location = None
-reading_mode = None
-device_port = None
+ip = None  # Ip address of the rfid reader.
+device_location = None  # Location of the rfid reader
+reading_mode = None  # Reading mode of the reader(On/Off)
+device_port = None  # Port of the rfid reader
 reading_mode_status = None  # Dictionary containing the ip as the key and its status i.e. reading mode(On/Off) as value
-reading_mode_from_queue = None
-
-
-def get_device_details(ip):
-    device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip)
-    port = device_port_result[0][0] if device_port_result else 'Not available'
-
-    device_location_result = server_connection_params.findDeviceLocationInRFIDDeviceDetailsUsingDeviceIP(ip)
-    location = device_location_result[0][0] if device_location_result else 'Not available'
-
-    return {
-        'port': port,
-        'location': location
-    }
+reading_mode_from_queue = None  # Reading mode(On/Off) received from the queue populated in the async_update_rfid_status function in utils.py
 
 
 def launch_gui(ip_addresses, ip_addresses_with_location):
@@ -38,7 +23,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
         :param ip_addresses: List of ip addresses of the rfid reader.
         :param ip_addresses_with_location: Tuple containing the ip address with its location.
     """
-    global terminal_output, details_box, ip, device_location, device_port, reading_mode, reading_mode_status, \
+    global ip, device_location, device_port, reading_mode, reading_mode_status, \
         reading_mode_from_queue
     sg.theme('DarkGrey12')
 
@@ -53,7 +38,6 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
         device_port = device_port_result[0][0] if device_port_result else 'Not available'
 
         layout = create_rfid_layout(ip, 'red', device_location, device_port)
-        # Use the create_detail_box function to create the details box
 
         if 'BoxMaker' in device_location or 'ManualFeeding' in device_location:
             box_maker_column.append([sg.Frame(title='', layout=layout, border_width=2,
@@ -92,11 +76,9 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
     window = sg.Window(title="RFID Reader Dashboard ", layout=layout, margins=(10, 10), size=(800, 600), resizable=True,
                        finalize=True)
 
-    # After setting up the GUI and starting the async updates
+    # After setting up the GUI, starting the async updates
     queue = setup_async_updates(ip_addresses)
-    # print(f'Queue for rfid status {queue}')
-    last_clicked_ip = None
-    last_clicked = None  # To keep track of the last clicked button
+    last_clicked_ip = None  # Stores the ip address of the last clicked button
 
     while True:
         event, values = window.read(timeout=10)
@@ -159,6 +141,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
             last_clicked_ip = clicked_ip
 
         elif event == 'START':
+            # Updating the tooltip details on the click of the start button
             update_tooltip(last_clicked_ip, window, device_location, device_port)
             window[f'START'].update(visible=False)
             window[f'STOP'].update(visible=True)
@@ -187,6 +170,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                                            'available.\n', append=True)
 
         elif event == 'STOP':
+            # Updating the tooltip details on the click of the stop button
             update_tooltip(last_clicked_ip, window, device_location, device_port)
             window[f'START'].update(visible=True)
             window[f'STOP'].update(visible=False)
@@ -218,7 +202,6 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 if last_clicked_ip:
                     window['TERMINAL'].update(value=rfid_response + '\n', append=True)
 
-
         except Empty:
             print('Queue for rfid tag handling is empty.')
             pass  # Handle empty queue if necessary
@@ -248,13 +231,14 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                     ip_address)
                 device_location = device_location_result[0][0] if device_location_result else 'Not available'
 
+                # Updating the tooltip on any updates received from queue
                 update_tooltip(ip_address, window, device_location, device_port)
-
+                # Updating the summary on any updates received from the queue
                 update_summary(window, active_connections, ip_addresses_with_location, ip_status_color)
-
 
         except Empty:
             print('Queue for rfid light check handling is empty.')
             pass
+
     window.refresh()
     window.close()

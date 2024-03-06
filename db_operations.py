@@ -228,7 +228,7 @@ class DatabaseOperations:
                 db_connection.close()
 
 
-# ----------------------- Creating the connection ---------------------
+# ----------------------- Establishing the connection ---------------------
 
 server_connection_params = DatabaseOperations(
     host_ip='192.168.10.1',
