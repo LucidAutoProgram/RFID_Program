@@ -5,9 +5,7 @@ import PySimpleGUI as sg
 from db_operations import server_connection_params
 from utils import create_rfid_layout, setup_async_updates, start_reading, active_connections, stop_reading, \
     get_global_asyncio_loop, getRFIDResponseQueue, async_start_listening_response, rfid_ip_reading_mode, \
-    update_tooltip, update_summary, get_device_details
-
-# --------------------- Global Variables ---------------------------------
+    update_tooltip, update_summary
 
 ip = None  # Ip address of the rfid reader.
 device_location = None  # Location of the rfid reader
@@ -15,30 +13,30 @@ reading_mode = None  # Reading mode of the reader(On/Off)
 device_port = None  # Port of the rfid reader
 reading_mode_status = None  # Dictionary containing the ip as the key and its status i.e. reading mode(On/Off) as value
 reading_mode_from_queue = None  # Reading mode(On/Off) received from the queue populated in the async_update_rfid_status function in utils.py
+# Dictionary to store IP address mapped to its details layout
+ip_details_layout_map = {}
+ip_terminal_layout = {}
+last_clicked_ip = None
 
 
 def launch_gui(ip_addresses, ip_addresses_with_location):
     """
-        Function to launch the GUI panel
-        :param ip_addresses: List of ip addresses of the rfid reader.
-        :param ip_addresses_with_location: Tuple containing the ip address with its location.
-    """
+            Function to launch the GUI panel
+            :param ip_addresses: List of ip addresses of the rfid reader.
+            :param ip_addresses_with_location: Tuple containing the ip address with its location.
+        """
     global ip, device_location, device_port, reading_mode, reading_mode_status, \
-        reading_mode_from_queue
+        reading_mode_from_queue, last_clicked_ip, clicked_ip
     sg.theme('DarkGrey12')
-
     # Create two separate columns for box_maker and product_maker with location labels
     box_maker_column = []
     product_maker_column = []
-
+    # Track the state (started/stopped) for each IP address
+    ip_state = {ip: False for ip, device_location in ip_addresses_with_location}
+    device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip)
+    device_port = device_port_result[0][0] if device_port_result else 'Not available'
     for ip, device_location in ip_addresses_with_location:
-        # Fetch port and reading mode for each IP address
-
-        device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip)
-        device_port = device_port_result[0][0] if device_port_result else 'Not available'
-
         layout = create_rfid_layout(ip, 'red', device_location, device_port)
-
         if 'BoxMaker' in device_location or 'ManualFeeding' in device_location:
             box_maker_column.append([sg.Frame(title='', layout=layout, border_width=2,
                                               title_color='white', relief=sg.RELIEF_SUNKEN, background_color='black')])
@@ -47,29 +45,30 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                                                   title_color='white', relief=sg.RELIEF_SUNKEN,
                                                   background_color='black')])
 
-    details_box_layout = [
-        [sg.Text('DEVICE DETAILS', background_color='black', text_color='white', font=('Cambria', 17),
-                 justification='center')],
-        [sg.Text('Device IP:', background_color='black', text_color='white', key='DEVICE_IP')],
-        [sg.Text('Device Port:', background_color='black', text_color='white', key='DEVICE_PORT')],
-        [sg.Text('Device Location:', background_color='black', text_color='white', key='DEVICE_LOCATION')],
-        [sg.Text('Reading Mode:', background_color='black', text_color='white', key='READING_MODE')],
-        [sg.Button('Start', key='START', visible=False), sg.Button('Stop', key='STOP', visible=False)],
+    column_layout = [
+        [sg.Text('DEVICE DETAILS', background_color='black', text_color='white', )],
+        [sg.Text(f'Device IP:', background_color='black', text_color='white'),
+         sg.Text('', background_color='black', text_color='white', key='IP')],
+        [sg.Text(f'Device Port:', background_color='black', text_color='white'),
+         sg.Text('', background_color='black', text_color='white', key='PORT')],
+        [sg.Text(f'Device Location:', background_color='black', text_color='white'),
+         sg.Text('', background_color='black', text_color='white', key='LOCATION')],
+        [sg.Text(f'Reading Mode:', background_color='black', text_color='white'),
+         sg.Text('', background_color='black', text_color='white', key='READING')],
+        [sg.Button('Start', key='START', visible=False), sg.Button('Stop', key='STOP', visible=False)]
+
     ]
 
-    terminal_layout = [
-        [sg.Multiline(default_text='', size=(30, 5), key=f'TERMINAL', autoscroll=True, disabled=True, expand_x=True,
-                      expand_y=True, background_color='black')]
-    ]
     layout = [
         [sg.Column(box_maker_column, background_color='black'), sg.VSeparator(),
-         sg.Column(product_maker_column, background_color='black'), sg.VSeparator(),
+         sg.Column(product_maker_column, background_color='black', ), sg.VSeparator(),
          sg.Multiline(default_text='', size=(40, 10), key='SUMMARY', autoscroll=True, expand_x=True, expand_y=True,
                       background_color='black')],
-        [sg.Column(details_box_layout, key='DETAILS_COLUMN', background_color='black', pad=((0, 0), (0, 0)),
-                   expand_x=True, expand_y=True, visible=False),
-         sg.Column(terminal_layout, key='TERMINAL_COLUMN', expand_x=True, expand_y=True, background_color='black',
-                   visible=False)],
+
+        [sg.Column(column_layout, key='DETAILS_COLUMN', background_color='black', size=(150, 100), visible=False,
+                   expand_y=True, expand_x=True),
+         sg.Multiline(default_text='', key='TERMINAL', background_color='black', size=(20, 10), visible=False,
+                      expand_y=True, expand_x=True)]
 
     ]
 
@@ -78,7 +77,6 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
 
     # After setting up the GUI, starting the async updates
     queue = setup_async_updates(ip_addresses)
-    last_clicked_ip = None  # Stores the ip address of the last clicked button
 
     while True:
         event, values = window.read(timeout=10)
@@ -99,52 +97,51 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
 
         # Assume last_clicked_ip is defined at a broader scope, initialized to None
         elif event.startswith('BUTTON_'):
-            clicked_ip = event.split('_')[1]  # Extract the IP address from the event key
+            clicked_ip = event.split('_')[1]
 
-            # Check if the same button is clicked again
+            # Check if the clicked IP is the same as the last clicked IP
             if last_clicked_ip == clicked_ip:
-                # Toggle visibility
-                details_visible = not window[f"DETAILS_COLUMN"].visible
-                terminal_visible = not window[f"TERMINAL_COLUMN"].visible
-                window[f"DETAILS_COLUMN"].update(visible=details_visible)
-                window[f"TERMINAL_COLUMN"].update(visible=terminal_visible)
+                # Toggle the visibility of the DETAILS_COLUMN and TERMINAL_COLUMN
+                window['DETAILS_COLUMN'].update(visible=not window['DETAILS_COLUMN'].visible)
+                window['TERMINAL'].update(visible=not window['TERMINAL'].visible)
             else:
-                # Fetch details for the clicked IP address
+                # If a different button is clicked, ensure that the columns are visible
+                window['DETAILS_COLUMN'].update(visible=True)
+                window['TERMINAL'].update('')
+                window['TERMINAL'].update(visible=True)
+
+                # Fetch the device details for the new IP
                 device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(clicked_ip)
-                device_port = device_port_result[0][0] if device_port_result else 'Not available'
+                port = device_port_result[0][0] if device_port_result else 'Not available'
+
+                device_location_result = server_connection_params.findDeviceLocationInRFIDDeviceDetailsUsingDeviceIP(
+                    clicked_ip)
+                location = device_location_result[0][0] if device_location_result else 'Not available'
 
                 reading_mode_status = rfid_ip_reading_mode.get(clicked_ip, 'Not Available')
 
-                device_location = next((loc for ip, loc in ip_addresses_with_location if ip == clicked_ip),
-                                       "Not Available")
+                # Update the display elements with the new device details
+                window['IP'].update(clicked_ip)
+                window['LOCATION'].update(location)
+                window['PORT'].update(port)
+                window['READING'].update(reading_mode_status)
 
-                # Hide the last clicked button's elements
-                if last_clicked_ip is not None:
-                    window[f"DETAILS_COLUMN"].update(visible=False)
-                    window[f"TERMINAL_COLUMN"].update(visible=False)
+                # Update button visibility based on the reading mode status
+                if reading_mode_status == 'On':
+                    window['START'].update(visible=False)
+                    window['STOP'].update(visible=True)
+                elif reading_mode_status == 'Off':
+                    window['START'].update(visible=True)
+                    window['STOP'].update(visible=False)
+                else:
+                    window['START'].update(visible=False)
+                    window['STOP'].update(visible=False)
 
-                # Update the visible details box and terminal with the fetched data for the current clicked IP
-                window[f"DETAILS_COLUMN"].update(visible=True)
-                window[f"TERMINAL_COLUMN"].update(visible=True)
-
-                # Fetch the details for the clicked IP address
-                device_details = get_device_details(clicked_ip)
-                print(f'RFID Ip reading mode for {clicked_ip} is {reading_mode_status}')
-
-                # Update the GUI elements with the fetched details
-                window['DEVICE_IP'].update(f"Device IP: {clicked_ip}")
-                window['DEVICE_PORT'].update(f"Device Port: {device_details['port']}")
-                window['DEVICE_LOCATION'].update(f"Device Location: {device_details['location']}")
-                window['READING_MODE'].update(f"Reading Mode: {reading_mode_status}")
-
-            # Update the last_clicked_ip for the next event
+            # Update the last clicked IP
             last_clicked_ip = clicked_ip
 
-        elif event == 'START':
-            # Updating the tooltip details on the click of the start button
+        elif event == 'START' and last_clicked_ip is not None:
             update_tooltip(last_clicked_ip, window, device_location, device_port)
-            window[f'START'].update(visible=False)
-            window[f'STOP'].update(visible=True)
             if last_clicked_ip in active_connections:
                 loop = get_global_asyncio_loop()
                 if loop is not None:
@@ -158,22 +155,18 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                         print(f'Unable to update the reading mode status in the rfid device details for '
                               f'{last_clicked_ip} as got error : {e}')
 
-                    window[f'TERMINAL'].update('Started RFID reading\n', append=True)
+                    window[f'TERMINAL'].update(f'Sent RFID reading command for ip :{last_clicked_ip}\n', append=True)
                 else:
                     print("Event loop not available for async operation.")
-                    window[f'TERMINAL'].update('Unable to start RFID reading\n', append=True)
-
+                    window[f'TERMINAL'].update(f'Unable to start RFID reading for ip :{last_clicked_ip}\n', append=True)
             else:
                 print('last clicked Ip address', last_clicked_ip)
                 print("Cannot Start reading. Connection not established or RFID reader offline.")
                 window[f'TERMINAL'].update('Unable to start RFID reading. RFID reader not '
-                                           'available.\n', append=True)
+                                           f'available for ip :{last_clicked_ip}.\n', append=True)
 
-        elif event == 'STOP':
-            # Updating the tooltip details on the click of the stop button
+        elif event == 'STOP' and last_clicked_ip is not None:
             update_tooltip(last_clicked_ip, window, device_location, device_port)
-            window[f'START'].update(visible=True)
-            window[f'STOP'].update(visible=False)
             if last_clicked_ip in active_connections:
                 loop = get_global_asyncio_loop()
                 if loop is not None:
@@ -186,22 +179,36 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                         print(f'Unable to update the reading mode status in the rfid device details for '
                               f'{last_clicked_ip} as got error : {e}')
 
-                    window[f'TERMINAL'].update('Stopped RFID reading\n', append=True)
+                    window[f'TERMINAL'].update(f'Stopped RFID reading for ip :{last_clicked_ip}\n', append=True)
                 else:
                     print("Event loop not available for async operation.")
-                    window[f'TERMINAL'].update('Unable to stop RFID reading\n', append=True)
+                    window[f'TERMINAL'].update(f'Unable to stop RFID reading for ip:{last_clicked_ip}\n', append=True)
             else:
                 print("Cannot stop reading. Connection not established or RFID reader offline.")
                 window[f'TERMINAL'].update(
-                    'Unable to stop RFID reading. RFID reader not available.\n', append=True)
+                    f'Unable to stop RFID reading. RFID reader not available for ip :{last_clicked_ip}.\n', append=True)
                 # Check for new RFID tag responses and update the GUI
         try:
             rfid_response_queue = getRFIDResponseQueue()
             while not rfid_response_queue.empty():
                 rfid_response = rfid_response_queue.get_nowait()
-                if last_clicked_ip:
-                    window['TERMINAL'].update(value=rfid_response + '\n', append=True)
 
+                rfid_ip = None
+                rfid_tag_response = None
+                # Iterate through the set and identify the IP address and the RFID tag ID.
+                for item in rfid_response:
+                    # Check if the item is an IP address.
+                    if '.' in item and len(item.split('.')) == 4:
+                        rfid_ip = item
+                    else:
+                        rfid_tag_response = item
+
+                # Print the extracted IP address and RFID tag ID.
+                print(f"IP Address: {rfid_ip}")
+                print(f"RFID Tag ID: {rfid_tag_response}")
+
+                if last_clicked_ip == rfid_ip:
+                    window[f'TERMINAL'].update(value=f"RFID tag: {rfid_tag_response} \n", append=True)
         except Empty:
             print('Queue for rfid tag handling is empty.')
             pass  # Handle empty queue if necessary
@@ -212,17 +219,19 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 if ip_address == last_clicked_ip:
                     print(f'Reading mode for {ip_address} is {reading_mode_from_queue}')
                     print(f'Ip address in image updating {ip_address} and image data {image_data}')
-                    window[f'READING_MODE'].update(f"Reading Mode: {reading_mode_from_queue}")
-
+                    window[f'READING'].update(f"{reading_mode_from_queue}")
                     if reading_mode_from_queue == 'On':
-                        window[f'START'].update(visible=False)
-                        window[f'STOP'].update(visible=True)
+                        window['START'].update(visible=False)
+                        window['STOP'].update(visible=True)
+                        # if ip_state[last_clicked_ip]:
+                        #  window['START'].update(visible=False)
+                        #  window['STOP'].update(visible=True)
                     elif reading_mode_from_queue == 'Off':
-                        window[f'START'].update(visible=True)
-                        window[f'STOP'].update(visible=False)
+                        window['START'].update(visible=True)
+                        window['STOP'].update(visible=False)
                     else:
-                        window[f'START'].update(visible=False)
-                        window[f'STOP'].update(visible=False)
+                        window['START'].update(visible=False)
+                        window['STOP'].update(visible=False)
 
                 device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip_address)
                 device_port = device_port_result[0][0] if device_port_result else 'Not available'
@@ -233,12 +242,11 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
 
                 # Updating the tooltip on any updates received from queue
                 update_tooltip(ip_address, window, device_location, device_port)
-                # Updating the summary on any updates received from the queue
+                # # Updating the summary on any updates received from the queue
                 update_summary(window, active_connections, ip_addresses_with_location, ip_status_color)
 
         except Empty:
             print('Queue for rfid light check handling is empty.')
             pass
 
-    window.refresh()
     window.close()

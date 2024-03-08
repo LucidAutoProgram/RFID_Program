@@ -37,28 +37,11 @@ def update_tooltip(ip, window, device_location, device_port):
         :param window:  Window of the gui.
     """
     new_reading_mode_status = rfid_ip_reading_mode.get(ip, 'Not Available')
-    print(new_reading_mode_status,f"new reading mode status for ip {ip} {device_location}")
+    print(new_reading_mode_status, f"new reading mode status for ip {ip} {device_location}")
     new_tooltip_text = f"IP: {ip}\nLocation: {device_location}\nPort: {device_port}\nReading Mode: " \
                        f"{new_reading_mode_status}"
     window[f'BUTTON_{ip}'].set_tooltip(new_tooltip_text)
     window.refresh()
-
-
-def get_device_details(ip):
-    """
-        Function to get the rfid reader details.
-        :param ip: Ip address of the rfid reader
-    """
-    device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip)
-    port = device_port_result[0][0] if device_port_result else 'Not available'
-
-    device_location_result = server_connection_params.findDeviceLocationInRFIDDeviceDetailsUsingDeviceIP(ip)
-    location = device_location_result[0][0] if device_location_result else 'Not available'
-
-    return {
-        'port': port,
-        'location': location
-    }
 
 
 def update_summary(window, active_connections, ip_addresses_with_location, ip_status_color):
@@ -124,7 +107,9 @@ def create_rfid_layout(ip, status_color, device_location, port):
                   key=f'IMAGE_{ip}'),
          sg.Button(device_location, button_color=('white', 'black'), border_width=0, focus=False,
                    key=f'BUTTON_{ip}', tooltip=tooltip_text)
+
          ],
+
     ]
 
 
@@ -315,7 +300,7 @@ async def listen_for_responses(ip_address):
                 # Process response
                 rfid_tag = get_rfid_tag_info(response)
                 print(f'Received rfid tag response in hexadecimal format: {rfid_tag}')
-                rfid_tag_response_queue.put(f"RFID tag: {rfid_tag}")
+                rfid_tag_response_queue.put({rfid_tag, ip_address})
                 rfid_reader_last_response_time[ip_address] = datetime.now()
             else:
                 # Handle connection closed
@@ -409,7 +394,7 @@ async def async_update_rfid_status(ip_addresses, queue):
                 else:
                     reading_mode = 'Off'
                     rfid_ip_reading_mode[ip_address] = reading_mode
-                    
+
                 # Check if connection is already established
                 if ip_address not in active_connections:
                     reader, writer = await open_net_connection(ip_address, port=2022)  # Adjust port as needed
