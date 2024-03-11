@@ -12,11 +12,13 @@ device_location = None  # Location of the rfid reader
 reading_mode = None  # Reading mode of the reader(On/Off)
 device_port = None  # Port of the rfid reader
 reading_mode_status = None  # Dictionary containing the ip as the key and its status i.e. reading mode(On/Off) as value
-reading_mode_from_queue = None  # Reading mode(On/Off) received from the queue populated in the async_update_rfid_status function in utils.py
+reading_mode_from_queue = None  # Reading mode(On/Off) received from the queue populated in the
+# async_update_rfid_status function in utils.py
 # Dictionary to store IP address mapped to its details layout
 ip_details_layout_map = {}
 ip_terminal_layout = {}
 last_clicked_ip = None
+clicked_ip = None
 
 
 def launch_gui(ip_addresses, ip_addresses_with_location):

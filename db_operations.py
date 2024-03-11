@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Tuple, List
 import mysql.connector
 from mysql.connector import Error
@@ -107,6 +108,126 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def findRFIDDeviceIDInRFIDDeviceDetailsTableUsingDeviceIP(self, device_ip) -> List[Tuple[str]]:
+        """
+            Fetches the Device ID from RFID_Device_Details table based on its DeviceIP.
+            :param device_ip: The ip address of the rfid device.
+            :return: List[Tuple[
+                                RFID_Device_ID
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                               SELECT RFID_Device_ID 
+                                               FROM RFID_Device_Details 
+                                               WHERE Device_IP = %s
+                                             """
+            db_cursor.execute(prepared_statement, (device_ip,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findRFIDDeviceIDInRFIDDeviceDetailsTableUsingDeviceIP => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def findLocationIDInRFIDDeviceTableUsingRFIDDeviceID(self, device_id) -> List[Tuple[str]]:
+        """
+            Fetches the  Location_ID from RFID_Device table based on its RIFD_Device_ID.
+            :param device_id: The device id of the rfid device.
+            :return: List[Tuple[
+                                Location_ID
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                                 SELECT Location_ID 
+                                                 FROM RFID_Device 
+                                                 WHERE RIFD_Device_ID = %s
+                                               """
+            db_cursor.execute(prepared_statement, (device_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findLocationIDInRFIDDeviceTableUsingRFIDDeviceID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def findMaterialCoreIDInMaterialRollLocationUsingLocationID(self, location_id) -> List[Tuple[int]]:
+        """
+            Fetches the Material_Core_ID from Material_Roll_Location table based on its Location_ID.
+            :param location_id: The id of the location of the rfid device.
+            :return: List[Tuple[
+                                Material_Core_ID
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                                 SELECT Material_Core_ID 
+                                                 FROM Material_Roll_Location 
+                                                 WHERE Location_ID = %s
+                                               """
+            db_cursor.execute(prepared_statement, (location_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findMaterialCoreIDInMaterialRollLocationUsingLocationID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def findInMaterialRollLocationUsingLocationID(self, location_id) -> List[Tuple[int]]:
+        """
+            Fetches the Material_Core_ID from Material_Roll_Location table based on its Location_ID.
+            :param location_id: The id of the location of the rfid device.
+            :return: List[Tuple[
+                                Material_Core_ID
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                                 SELECT Material_Core_ID 
+                                                 FROM Material_Roll_Location 
+                                                 WHERE Location_ID = %s
+                                               """
+            db_cursor.execute(prepared_statement, (location_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findMaterialCoreIDInMaterialRollLocationUsingLocationID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
     def findDeviceLocationInRFIDDeviceDetailsUsingDeviceIP(self, device_ip) -> List[Tuple[str]]:
         """
             Fetches the Device Location based on its DeviceIP.
@@ -197,6 +318,63 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag(self, rfid_tag: str) -> List[Tuple[str]]:
+        """
+            Fetches all the Material_Core_ID from the Material_Core_RFID table based on the RFID_Tag.
+            :param rfid_tag: RFID tag scanned by the rfid reader.
+
+            :return: List[Tuple[
+                                Material_Core_ID
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                      SELECT DISTINCT Material_Core_ID 
+                                      FROM Material_Core_RFID
+                                      WHERE RFID_Tag = %s 
+                                    """
+            db_cursor.execute(prepared_statement, (rfid_tag,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def findMaxMaterialCoreIdFromMaterialCoreRFIDTableUsingDeviceIP(self, device_ip: str) -> str:
+        """
+            Fetches the maximum Material_Core_ID from the Material_Core_RFID table for a particular ip address.
+            :return: The maximum Material_Core_ID for a particular ip address.
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                        SELECT MAX(Material_Core_ID) FROM Material_Core_RFID
+                                        WHERE Device_IP = %s
+                                   """
+            db_cursor.execute(prepared_statement, (device_ip,))
+            db_result = db_cursor.fetchone()
+            if db_result and db_result[0] is not None:
+                return db_result[0]
+        except Exception as e:
+            print(f'Error fetching maximum Material_Core_ID for device ip - {device_ip}: {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
     def updateReadingModeStatusInRFIDDeviceDetails(self, reading_mode: str, device_ip: str):
         """
             This function is for updating the status of rfid reading mode ('On' or 'Off') based on the device ip.
@@ -227,6 +405,69 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def writeToMaterialCoreRFIDTable(self, rfid_tag: str, material_core_id: int, material_core_rfid_start: datetime):
+        """
+            Method with which to write to Material_Core_RFID table
+
+            :param rfid_tag: The rfid tag scanned by the rfid reader.
+            :param material_core_id: Unique id for each core. It is assigned after scanning the tags on the core.
+            :param material_core_rfid_start: The rfid tag first scan date and time by the rfid reader.
+
+            :return: Null
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+
+            write_operation = (rfid_tag, material_core_id, material_core_rfid_start)
+            prepared_statement = """
+                                          INSERT INTO Material_Core_RFID (
+                                          RFID_Tag, Material_Core_ID,
+                                          Material_Core_RFID_Start) 
+                                          VALUES (%s, %s, %s);
+                                       """
+
+            db_cursor.execute(prepared_statement, write_operation)
+            db_connection.commit()  # Save write work
+        except Exception as e:
+            print(f'Error from DatabaseOperations.writeToMaterialCoreRFIDTable => {e}')
+        finally:
+            if db_connection and db_connection.is_connected():
+                db_cursor.close()
+                db_connection.close()
+
+    def writeToMaterialCoreTable(self, material_core_id: int):
+        """
+            Method with which to write  table
+
+            :param material_core_id: Unique id for each core. It is assigned after scanning the tags on the core.
+
+            :return: Null
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+
+            prepared_statement = """
+                                          INSERT INTO Material_Core_RFID (
+                                          RFID_Tag, Material_Core_ID,
+                                          Material_Core_RFID_Start) 
+                                          VALUES (%s, %s, %s);
+                                       """
+
+            db_cursor.execute(prepared_statement, (material_core_id,))
+            db_connection.commit()  # Save write work
+        except Exception as e:
+            print(f'Error from DatabaseOperations.writeToMaterialCoreTable => {e}')
+        finally:
+            if db_connection and db_connection.is_connected():
+                db_cursor.close()
+                db_connection.close()
+
 
 # ----------------------- Establishing the connection ---------------------
 
@@ -240,4 +481,3 @@ server_connection_params = DatabaseOperations(
     db_pool_name='server_db_pool',
     db_pool_size=5
 )
-
