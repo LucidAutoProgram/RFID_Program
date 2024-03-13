@@ -85,6 +85,7 @@ async def listen_for_responses(ip_address, app):
         # info to the database.
         existing_rfid_tags = set()  # Set containing the existing rfid tags in the database
         all_tags = set()
+        all_tags_datetime = {}
         # print(f'Reading is active for ip - {ip_address}')
         # print(f'Current date time - {datetime.now()} and scan end time is {scan_end_time}')
 
@@ -100,6 +101,7 @@ async def listen_for_responses(ip_address, app):
                     if rfid_tag:
                         current_datetime = datetime.now()
                         all_tags.add(rfid_tag)
+                        all_tags_datetime[rfid_tag] = datetime.now()
 
                         device_id_list = server_connection_params.findRFIDDeviceIDInRFIDDeviceDetailsTableUsingDeviceIP(
                             ip_address)
@@ -159,22 +161,32 @@ async def listen_for_responses(ip_address, app):
                 print(f"Error listening to {ip_address}: {e}")
                 break
 
-        # Check if no tags were scanned during the session
-        if not current_tags:
-            # Display message indicating no tags were found
-            app.after(0, lambda: display_message_and_image(
-                f'Please put Core For scanning', "Images/core.png", app))
-            print(f"No tags to scan for IP ")
+        # Check if no new tags were scanned during the session
 
-        elif len(current_tags) >= 3:
-            print(f'Current tags received - {current_tags} for IP - {ip_address}')
-            await processCoreInfoToMaterialCoreRFIDTable(ip_address, current_tags, current_tags_datetime, app)
-        elif len(current_tags) < 3:
-            print(len(current_tags), "tags length")
-            tags_needed = 3 - len(current_tags)
-            print(f'Tags found in the scan session of the RFID reader with IP - {ip_address} are less than 3')
-            app.after(0, lambda: display_message_and_image(
-                f'RFID tags are less than 3. Need {tags_needed} more tag', "Images/fail.png", app))
+        if all_tags:
+            if len(all_tags) >= 3:
+                tags_repeated = all_tags.intersection(existing_rfid_tags)
+                print("tags_repeated1", tags_repeated)
+                print("all_tags1", all_tags)
+                if tags_repeated:
+                    print("tags_repeated2", tags_repeated)
+                    print("all_tags2", all_tags)
+
+                    print('Core is already scanned.')
+                    app.after(0, lambda: display_message_and_image(
+                        f'Core is already scanned and is ready to use.', "Images/pass.png", app))
+                    await processCoreInfoToMaterialCoreRFIDTable(ip_address, all_tags, all_tags_datetime,
+                                                                 app)
+                    app.after(22000, lambda: display_message_and_image(
+                        f'Please put Core For scanning', "Images/core.png", app))
+                else:
+                    print(f'Current tags received - {current_tags} for IP - {ip_address}')
+                    await processCoreInfoToMaterialCoreRFIDTable(ip_address, current_tags, current_tags_datetime,
+                                                                 app)
+            else:
+                tags_needed = 3 - len(all_tags)
+                app.after(0, lambda: display_message_and_image(
+                    f'RFID tags are less than 3. Need {tags_needed} more tag', "Images/fail.png", app))
 
 
 async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time, app):
@@ -193,6 +205,7 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
         result = server_connection_params.findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag(tag)
         if result:
             existing_core_id = result[0][0]
+            print(existing_core_id, "core_id")
             break  # Break the loop if any of the tags is found in the database
 
     # If an existing rfid tag exists in the database use its existing Core_ID
@@ -226,6 +239,9 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
             app.after(0, lambda: display_message_and_image(
                 f'Core is successfully scanned and assigned Core ID is {core_id} and is ready to use',
                 "Images/pass.png", app))
+
+            app.after(22000, lambda: display_message_and_image(
+                f'Please put Core For scanning', "Images/core.png", app))
         except Exception as e:
             print(f"Error processing tag {tag}: {e}")
             app.after(0, lambda: display_message_and_image(f"Error processing tag {tag}: {e}", "Images/fail.png", app))

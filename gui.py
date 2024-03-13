@@ -20,6 +20,9 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
     heading_label = tk.Label(app, text="CORE STATION", bg=background_color, fg="black", font=("Cambria", 24, 'bold'))
     heading_label.pack(pady=20)  # Use padding to space out the label from the window's top edge
 
+    app.after(0, lambda: display_message_and_image(
+        f'Please put Core For scanning', "Images/core.png", app))
+
     def start_asyncio_loop(loop):
         asyncio.set_event_loop(loop)
         loop.run_forever()
