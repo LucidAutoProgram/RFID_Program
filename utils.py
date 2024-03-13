@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timedelta
 import asyncio
 import tkinter as tk
@@ -13,6 +12,13 @@ active_connections = {}  # Global storage for active connections
 
 
 def display_message_and_image(message, image_path, app):
+    """
+        Function to display the image and message on the gui window.
+        :param message: Message to be displayed on the gui window.
+        :param image_path: Path of the image.
+        :param app: window of the gui.
+        :return: None
+    """
     # Opening the image file located at `image_path`
     img = Image.open(image_path)
 
@@ -64,6 +70,12 @@ def get_rfid_tag_info(response):
 
 
 async def manage_rfid_readers(reader_ips, app):
+    """
+        Function to listen response of all the rfid readers.
+        :param reader_ips: Ip address of the rfid reader.
+        :param app: Gui window.
+        :return: None
+    """
     tasks = [listen_for_responses(ip, app) for ip in reader_ips]
     await asyncio.gather(*tasks)
 
@@ -72,6 +84,8 @@ async def listen_for_responses(ip_address, app):
     """
         Continuously listen for responses from an RFID reader.
         :param ip_address: Ip address of the rfid reader for which to listen response.
+        :param app: Gui window.
+        :return: None
     """
     global active_connections, reading_active
 
@@ -95,8 +109,6 @@ async def listen_for_responses(ip_address, app):
         existing_rfid_tags = set()  # Set containing the existing rfid tags in the database
         all_tags = set()
         all_tags_datetime = {}
-        # print(f'Reading is active for ip - {ip_address}')
-        # print(f'Current date time - {datetime.now()} and scan end time is {scan_end_time}')
 
         while datetime.now() < scan_end_time:  # Listening to the rfid reader response will continue for 10 seconds
 
@@ -117,8 +129,8 @@ async def listen_for_responses(ip_address, app):
                         if device_id_list:
                             device_id = device_id_list[0][0]
 
-                            location_id_list = server_connection_params.findLocationIDInRFIDDeviceTableUsingRFIDDeviceID(
-                                device_id)
+                            location_id_list = server_connection_params.\
+                                findLocationIDInRFIDDeviceTableUsingRFIDDeviceID(device_id)
 
                             if location_id_list:
                                 location_id = location_id_list[0][0]
@@ -176,13 +188,9 @@ async def listen_for_responses(ip_address, app):
             if len(all_tags) >= 3:
                 # Finding the intersection of all_tags and existing_rfid_tags to identify any repeated tags
                 tags_repeated = all_tags.intersection(existing_rfid_tags)
-                print("tags_repeated1", tags_repeated)
-                print("all_tags1", all_tags)
 
                 # If there are repeated tags even one tag then , it implies some or all tags have been scanned before
                 if tags_repeated:
-                    print("tags_repeated2", tags_repeated)
-                    print("all_tags2", all_tags)
                     print('Core is already scanned.')
                     await processCoreInfoToMaterialCoreRFIDTable(ip_address, all_tags, all_tags_datetime, app,
                                                                  existing_rfid_tags, all_tags)
@@ -198,15 +206,15 @@ async def listen_for_responses(ip_address, app):
                     f'RFID tags are less than 3. Need {tags_needed} more tag', "Images/fail.png", app))
 
 
-async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time, app,existing_tags,
+async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time, app, existing_tags,
                                                  all_received_tags):
     """
-           Function to process the core specs and rfid tag and its scan time info to the database.
-           :param ip_address: The ip address of the rfid reader.
-           :param tags: Rfid tags scanned by the reader.
-           :param tag_scan_time: Scanning time of the rfid tags.
-           :param existing_tags: Tags which are already present in the database.
-           :param all_received_tags: All the rfid tags which are received in the particular rfid scan session.
+       Function to process the core specs and rfid tag and its scan time info to the database.
+       :param ip_address: The ip address of the rfid reader.
+       :param tags: Rfid tags scanned by the reader.
+       :param tag_scan_time: Scanning time of the rfid tags.
+       :param existing_tags: Tags which are already present in the database.
+       :param all_received_tags: All the rfid tags which are received in the particular rfid scan session.
     """
 
     device_id = server_connection_params.findRFIDDeviceIDInRFIDDeviceDetailsTableUsingDeviceIP(ip_address)[0][0]

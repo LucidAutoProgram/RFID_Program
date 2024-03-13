@@ -6,7 +6,13 @@ from utils import manage_rfid_readers, display_message_and_image
 
 
 def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", background_color="white"):
-    # Initializing the main Tkinter application window
+    """
+        Initializing the main Tkinter application window
+        :param title: Title of the gui window.
+        :param size: Size of the gui window
+        :param background_color: Background color of the window.
+        :return: None
+    """
     app = tk.Tk()
     app.title(title)  # Setting the title of the window
     app.geometry(size)  # Setting the size of the window
@@ -21,13 +27,20 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
     app.after(0, lambda: display_message_and_image(
         f'Please put Core For scanning', "Images/core.png", app))
 
-    # Function to start the asyncio event loop in a separate thread
     def start_asyncio_loop(loop):
+        """
+            Function to start the asyncio event loop in a separate thread
+            :param loop: Separate event loop for the async operations.
+            :return: None
+        """
         asyncio.set_event_loop(loop)  # Setting the event loop for the asyncio operations
         loop.run_forever()  # Start the loop to run forever
 
-    # Function to handle window close event
     def close_event():
+        """
+            Function to handle window close event
+            :return: None
+        """
         loop.call_soon_threadsafe(loop.stop)  # Safely stop the asyncio loop from another thread
         app.destroy()  # Destroying the Tkinter window, effectively closing the application
 
@@ -40,8 +53,12 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
     t = Thread(target=start_asyncio_loop, args=(loop,))
     t.start()
 
-    # Function to schedule asyncio tasks from the Tkinter main thread
     def schedule_asyncio_tasks():
+        """
+            Function to schedule asyncio tasks from the Tkinter main thread
+            :return: None
+        """
+
         device_ips = [ip[0] for ip in server_connection_params.findAllDeviceIPInRFIDDeviceDetails()]
         # Scheduling the manage_rfid_readers coroutine to run in the asyncio loop
         asyncio.run_coroutine_threadsafe(manage_rfid_readers(device_ips, app), loop)
