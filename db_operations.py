@@ -404,11 +404,13 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
-    def updateMaterialCoreRFIDEndInMaterialCoreRFIDTable(self, material_core_rfid_end: datetime, rfid_tag: str):
+    def updateMaterialCoreRFIDEndInMaterialCoreRFIDTable(self, material_core_rfid_end: datetime, rfid_tag: str,
+                                                         material_core_id: int):
         """
             This function is for updating the end date of the rfid tag, basically when rfid tag is damaged.
             :param material_core_rfid_end: End time of the rfid tag, like when it got damaged.
             :param rfid_tag: The rfid tag scanned by the rfid reader.
+            :param material_core_id: Id of the Core.
             :return: None
         """
         db_connection = None
@@ -420,12 +422,13 @@ class DatabaseOperations:
             prepared_statement = """
                                     UPDATE Material_Core_RFID 
                                     SET Material_Core_RFID_End = %s 
-                                    WHERE RFID_Tag = %s
+                                    WHERE RFID_Tag = %s AND 
+                                    Material_Core_ID = %s
                                  """
 
-            db_cursor.execute(prepared_statement, (material_core_rfid_end, rfid_tag))
+            db_cursor.execute(prepared_statement, (material_core_rfid_end, rfid_tag, material_core_id))
             db_connection.commit()
-            print(f'Updated end time for tag - {rfid_tag}')
+            print(f'Updated end time for tag - {rfid_tag} with core id - {material_core_id}')
         except Exception as e:
             print(f'Error from DatabaseOperations.updateMaterialCoreRFIDEndInMaterialCoreRFIDTable => {e}')
         finally:

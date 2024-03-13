@@ -184,12 +184,12 @@ async def listen_for_responses(ip_address, app):
                     print("tags_repeated2", tags_repeated)
                     print("all_tags2", all_tags)
                     print('Core is already scanned.')
-                    await processCoreInfoToMaterialCoreRFIDTable(ip_address, all_tags, all_tags_datetime,
-                                                                 app)
+                    await processCoreInfoToMaterialCoreRFIDTable(ip_address, all_tags, all_tags_datetime, app,
+                                                                 existing_rfid_tags, all_tags)
                 else:
                     # If there are no repeated tags, it means all current tags are new
                     await processCoreInfoToMaterialCoreRFIDTable(ip_address, current_tags, current_tags_datetime,
-                                                                 app)
+                                                                 app, existing_rfid_tags, all_tags)
             else:
                 # If there are less than 3 tags, calculating how many more are needed to proceed
                 tags_needed = 3 - len(all_tags)
@@ -198,13 +198,17 @@ async def listen_for_responses(ip_address, app):
                     f'RFID tags are less than 3. Need {tags_needed} more tag', "Images/fail.png", app))
 
 
-async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time, app):
+async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time, app,existing_tags,
+                                                 all_received_tags):
     """
-        Function to process the core specs and rfid tag and its scan time info to the database.
-        :param ip_address: The ip address of the rfid reader.
-        :param tags: Rfid tags scanned by the reader.
-        :param tag_scan_time: Scanning time of the rfid tags.
+           Function to process the core specs and rfid tag and its scan time info to the database.
+           :param ip_address: The ip address of the rfid reader.
+           :param tags: Rfid tags scanned by the reader.
+           :param tag_scan_time: Scanning time of the rfid tags.
+           :param existing_tags: Tags which are already present in the database.
+           :param all_received_tags: All the rfid tags which are received in the particular rfid scan session.
     """
+
     device_id = server_connection_params.findRFIDDeviceIDInRFIDDeviceDetailsTableUsingDeviceIP(ip_address)[0][0]
     location_id = server_connection_params.findLocationIDInRFIDDeviceTableUsingRFIDDeviceID(device_id)[0][0]
 
@@ -220,13 +224,18 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
     # If an existing rfid tag exists in the database use its existing Core_ID
     if existing_core_id:
         core_id = existing_core_id
-        # Prompting the user that core is already scanned
         app.after(0, lambda: display_message_and_image(
-            f'It is an existing core. \n Assigned Core ID is {core_id}. \n Core is ready to use',
+            f'Core is already scanned and assigned Core ID is {core_id} and is ready to use',
             "Images/pass.png", app))
-
-        app.after(10000, lambda: display_message_and_image(
+        app.after(5000, lambda: display_message_and_image(
             f'Please put Core For scanning', "Images/core.png", app))
+
+        # Case for handling missing tags
+        missing_tags = existing_tags - all_received_tags
+        if missing_tags:  # If there ar missing tags, let's say when reusing the core.
+            for missing_tag in missing_tags:
+                server_connection_params.updateMaterialCoreRFIDEndInMaterialCoreRFIDTable(datetime.now(), missing_tag,
+                                                                                          core_id)
 
     else:
         # If no existing RFID tag found in the database, then create a new Material_Core_ID
@@ -244,7 +253,7 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
                 f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
                 "Images/pass.png", app))
 
-            app.after(10000, lambda: display_message_and_image(
+            app.after(5000, lambda: display_message_and_image(
                 f'Please put Core For scanning', "Images/core.png", app))
 
         else:
@@ -258,7 +267,7 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
                 f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
                 "Images/pass.png", app))
 
-            app.after(10000, lambda: display_message_and_image(
+            app.after(5000, lambda: display_message_and_image(
                 f'Please put Core For scanning', "Images/core.png", app))
 
     for tag in tags:
