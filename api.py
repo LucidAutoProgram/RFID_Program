@@ -21,22 +21,26 @@ def open_device(com_port, baud_rate_index):
         return None
 
 
-def open_net_connection(ip, port):
+async def open_net_connection(ip, port, timeout=3):
     """
-        Function to connect to rfid reader using network(TCP/IP connection).
-        :param ip: The ip of the rfid reader to connect to.
-        :param port: Port of the rfid reader used to connect.
-        :return: Connection established using network.
+        Asynchronously establish a network connection to the RFID reader with a timeout.
+
+        :param ip: The IP address to connect to.
+        :param port: The port number to connect to.
+        :param timeout: The timeout in seconds for the connection attempt.
+        :return: A tuple of (reader, writer) if the connection is successful, (None, None) otherwise.
     """
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((ip, port))
+        # Use asyncio.wait_for to apply a timeout to the connection attempt
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(ip, port), timeout)
         print(f"Network connection established to {ip}:{port}")
-        return sock
-    except socket.error as e:
+        return reader, writer
+    except asyncio.TimeoutError:
+        print(f"Connection attempt to {ip}:{port} timed out after {timeout} seconds.")
+        return None, None
+    except Exception as e:
         print(f"Failed to connect to {ip}:{port}: {e}")
-        return None
-
+        return None, None
 
 def close_serial_connection(serial_connection):
     """
