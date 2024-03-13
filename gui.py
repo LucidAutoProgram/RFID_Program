@@ -41,6 +41,15 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
             Function to handle window close event
             :return: None
         """
+        # Attempt to cancel all tasks
+        for task in asyncio.all_tasks(loop):
+            task.cancel()
+        try:
+            loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop)))
+        except asyncio.CancelledError:
+            # Expecting all tasks to be cancelled, so cancelled errors are ignored
+            pass
+
         loop.call_soon_threadsafe(loop.stop)  # Safely stop the asyncio loop from another thread
         app.destroy()  # Destroying the Tkinter window, effectively closing the application
 
