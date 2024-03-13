@@ -161,9 +161,7 @@ async def listen_for_responses(ip_address, app):
                 print(f"Error listening to {ip_address}: {e}")
                 break
 
-        # Check if no new tags were scanned during the session
-
-        if all_tags:
+        if all_tags:  # If tags received in the particular rfid reader session
             if len(all_tags) >= 3:
                 tags_repeated = all_tags.intersection(existing_rfid_tags)
                 print("tags_repeated1", tags_repeated)
@@ -172,9 +170,8 @@ async def listen_for_responses(ip_address, app):
                     print("tags_repeated2", tags_repeated)
                     print("all_tags2", all_tags)
 
-                    print('Core is already scanned.')
-                    app.after(0, lambda: display_message_and_image(
-                        f'Core is already scanned and is ready to use.', "Images/pass.png", app))
+                    # print('Core is already scanned.')
+
                     await processCoreInfoToMaterialCoreRFIDTable(ip_address, all_tags, all_tags_datetime,
                                                                  app)
                     app.after(22000, lambda: display_message_and_image(
@@ -211,6 +208,11 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
     # If an existing rfid tag exists in the database use its existing Core_ID
     if existing_core_id:
         core_id = existing_core_id
+        app.after(0, lambda: display_message_and_image(
+            f'Core is already scanned and assigned Core ID is {core_id} and is ready to use',
+            "Images/pass.png", app))
+        app.after(22000, lambda: display_message_and_image(
+            f'Please put Core For scanning', "Images/core.png", app))
 
     else:
         # If no existing RFID tag found in the database, then create a new Material_Core_ID
@@ -224,11 +226,23 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
             server_connection_params.writeToMaterialCoreTable(core_id)
             server_connection_params.writeToMaterialRollLocation(core_id, location_id)
 
+            app.after(0, lambda: display_message_and_image(
+                f'Core is successfully scanned and assigned Core ID is {core_id} and is ready to use',
+                "Images/pass.png", app))
+            app.after(22000, lambda: display_message_and_image(
+                f'Please put Core For scanning', "Images/core.png", app))
+
         else:
             # Create a new core_id, if not even a single core_id is found in the db
             core_id = 1
             server_connection_params.writeToMaterialCoreTable(core_id)
             server_connection_params.writeToMaterialRollLocation(core_id, location_id)
+
+            app.after(0, lambda: display_message_and_image(
+                f'Core is successfully scanned and assigned Core ID is {core_id} and is ready to use',
+                "Images/pass.png", app))
+            app.after(22000, lambda: display_message_and_image(
+                f'Please put Core For scanning', "Images/core.png", app))
 
     for tag in tags:
         try:
@@ -236,12 +250,7 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
             rfid_tag_start = tag_scan_time[tag]  # Time when the tag was first scanned.
             server_connection_params.writeToMaterialCoreRFIDTable(tag, core_id, rfid_tag_start)
             print(f'Wrote {tag} to database with core id {core_id}, scan time {rfid_tag_start}')
-            app.after(0, lambda: display_message_and_image(
-                f'Core is successfully scanned and assigned Core ID is {core_id} and is ready to use',
-                "Images/pass.png", app))
 
-            app.after(22000, lambda: display_message_and_image(
-                f'Please put Core For scanning', "Images/core.png", app))
         except Exception as e:
             print(f"Error processing tag {tag}: {e}")
             app.after(0, lambda: display_message_and_image(f"Error processing tag {tag}: {e}", "Images/fail.png", app))

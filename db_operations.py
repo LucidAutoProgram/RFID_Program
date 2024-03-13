@@ -404,6 +404,36 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def updateMaterialCoreRFIDEndInMaterialCoreRFIDTable(self, material_core_rfid_end: datetime, rfid_tag: str):
+        """
+            This function is for updating the end date of the rfid tag, basically when rfid tag is damaged.
+            :param material_core_rfid_end: End time of the rfid tag, like when it got damaged.
+            :param rfid_tag: The rfid tag scanned by the rfid reader.
+            :return: None
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+
+            prepared_statement = """
+                                    UPDATE Material_Core_RFID 
+                                    SET Material_Core_RFID_End = %s 
+                                    WHERE RFID_Tag = %s
+                                 """
+
+            db_cursor.execute(prepared_statement, (material_core_rfid_end, rfid_tag))
+            db_connection.commit()
+            print(f'Updated end time for tag - {rfid_tag}')
+        except Exception as e:
+            print(f'Error from DatabaseOperations.updateMaterialCoreRFIDEndInMaterialCoreRFIDTable => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
     def writeToMaterialCoreRFIDTable(self, rfid_tag: str, material_core_id: int, material_core_rfid_start: datetime):
         """
             Method with which to write to Material_Core_RFID table
@@ -519,21 +549,20 @@ server_connection_params = DatabaseOperations(
 #
 #     location_id_list = server_connection_params.findLocationIDInRFIDDeviceTableUsingRFIDDeviceID(
 #         device_id)
-#     print('Location id list', location_id_list)
 #
 #     if location_id_list:
 #         location_id = location_id_list[0][0]
 #
 #         material_core_id_list = server_connection_params. \
 #             findMaterialCoreIDInMaterialRollLocationUsingLocationID(location_id)
-#         print('Material Core id list', material_core_id_list)
 #         if material_core_id_list:
-#             material_core_id = material_core_id_list[0][0]
+#             for material_core_id_tuple in material_core_id_list:
+#                 material_core_id = material_core_id_tuple[0]
 #
-#             rfid_tags_list = server_connection_params. \
-#                 findRFIDTagInMaterialCoreRFIDUsingMaterialCoreID(material_core_id)
-#             if rfid_tags_list:
-#                 for rfid_tags_tuple in rfid_tags_list:
-#                     existing_rfid_tags.add(rfid_tags_tuple[0])
+#                 rfid_tags_list = server_connection_params. \
+#                     findRFIDTagInMaterialCoreRFIDUsingMaterialCoreID(material_core_id)
+#                 if rfid_tags_list:
+#                     for rfid_tags_tuple in rfid_tags_list:
+#                         existing_rfid_tags.add(rfid_tags_tuple[0])
 #
 # print('Existing rfid tags ', existing_rfid_tags)
