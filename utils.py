@@ -1,13 +1,8 @@
 import asyncio
 from datetime import datetime, timedelta
-
-from db_operations import server_connection_params
 import asyncio
 import tkinter as tk
-from threading import Thread
-from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
-
 from db_operations import server_connection_params
 from rfid_api import open_net_connection
 
@@ -18,21 +13,35 @@ active_connections = {}  # Global storage for active connections
 
 
 def display_message_and_image(message, image_path, app):
-    # Open the image
+    # Opening the image file located at `image_path`
     img = Image.open(image_path)
-    # Resize the image
+
+    # Resizing the image to 150x150 pixels using Lanczos resampling for high quality
     img = img.resize((150, 150), Image.Resampling.LANCZOS)
+
+    # Converting the PIL image to a format that Tkinter can use
     photo = ImageTk.PhotoImage(img)
 
+    # Creating a frame within the `app` window to contain the message and image, with specific styling
     message_frame = tk.Frame(app, bg="black", bd=4, relief="groove")
+
+    # Positioning the frame within the window, centered and taking up 80% of the width and 50% of the height
     message_frame.place(relx=0.5, rely=0.6, anchor="center", relwidth=0.8, relheight=0.5)
 
+    # Creating a label within the frame for displaying the image, with a black background
     image_label = tk.Label(message_frame, image=photo, bg="black")
+
+    # Keeping a reference to the image to prevent it from being garbage collected, ensuring it displays properly
     image_label.image = photo
+
+    # Packing the image label on the left side of the frame, with some padding
     image_label.pack(side="left", padx=10)
 
+    # Creating a label within the frame for displaying the message, styled with a white foreground and specific font
     message_label = tk.Label(message_frame, text=message, bg="black", fg="white", font=("Cambria", 12),
-                             wraplength=240)
+                             wraplength=240)  # The `wrap length` determines how text wraps in the label
+
+    # Packing the message label on the right side of the frame, allowing it to expand and fill the available space
     message_label.pack(side="right", expand=True, fill="both", padx=10)
 
 
@@ -161,27 +170,30 @@ async def listen_for_responses(ip_address, app):
                 print(f"Error listening to {ip_address}: {e}")
                 break
 
-        if all_tags:  # If tags received in the particular rfid reader session
+        # Checking if any tags have been received in the current RFID reader session
+        if all_tags:
+            # Checking if the number of tags in all_tags is equal to or more than three
             if len(all_tags) >= 3:
+                # Finding the intersection of all_tags and existing_rfid_tags to identify any repeated tags
                 tags_repeated = all_tags.intersection(existing_rfid_tags)
                 print("tags_repeated1", tags_repeated)
                 print("all_tags1", all_tags)
+
+                # If there are repeated tags even one tag then , it implies some or all tags have been scanned before
                 if tags_repeated:
                     print("tags_repeated2", tags_repeated)
                     print("all_tags2", all_tags)
-
-                    # print('Core is already scanned.')
-
+                    print('Core is already scanned.')
                     await processCoreInfoToMaterialCoreRFIDTable(ip_address, all_tags, all_tags_datetime,
                                                                  app)
-                    app.after(22000, lambda: display_message_and_image(
-                        f'Please put Core For scanning', "Images/core.png", app))
                 else:
-                    print(f'Current tags received - {current_tags} for IP - {ip_address}')
+                    # If there are no repeated tags, it means all current tags are new
                     await processCoreInfoToMaterialCoreRFIDTable(ip_address, current_tags, current_tags_datetime,
                                                                  app)
             else:
+                # If there are less than 3 tags, calculating how many more are needed to proceed
                 tags_needed = 3 - len(all_tags)
+                # Prompting the user that more tags are needed for processing
                 app.after(0, lambda: display_message_and_image(
                     f'RFID tags are less than 3. Need {tags_needed} more tag', "Images/fail.png", app))
 
@@ -208,15 +220,16 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
     # If an existing rfid tag exists in the database use its existing Core_ID
     if existing_core_id:
         core_id = existing_core_id
+        # Prompting the user that core is already scanned
         app.after(0, lambda: display_message_and_image(
-            f'Core is already scanned and assigned Core ID is {core_id} and is ready to use',
+            f'It is an existing core. \n Assigned Core ID is {core_id}. \n Core is ready to use',
             "Images/pass.png", app))
-        app.after(22000, lambda: display_message_and_image(
+
+        app.after(10000, lambda: display_message_and_image(
             f'Please put Core For scanning', "Images/core.png", app))
 
     else:
         # If no existing RFID tag found in the database, then create a new Material_Core_ID
-
         # Fetch the current max core_id.
         max_core_id = server_connection_params.findMaxCoreIdFromMaterialCoreRFIDTable()
 
@@ -226,10 +239,12 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
             server_connection_params.writeToMaterialCoreTable(core_id)
             server_connection_params.writeToMaterialRollLocation(core_id, location_id)
 
+            # Prompting the user that new core is successfully scanned and new core id is assigned
             app.after(0, lambda: display_message_and_image(
-                f'Core is successfully scanned and assigned Core ID is {core_id} and is ready to use',
+                f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
                 "Images/pass.png", app))
-            app.after(22000, lambda: display_message_and_image(
+
+            app.after(10000, lambda: display_message_and_image(
                 f'Please put Core For scanning', "Images/core.png", app))
 
         else:
@@ -238,10 +253,12 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
             server_connection_params.writeToMaterialCoreTable(core_id)
             server_connection_params.writeToMaterialRollLocation(core_id, location_id)
 
+            # Prompting the user that new core is successfully scanned and new core id is assigned
             app.after(0, lambda: display_message_and_image(
-                f'Core is successfully scanned and assigned Core ID is {core_id} and is ready to use',
+                f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
                 "Images/pass.png", app))
-            app.after(22000, lambda: display_message_and_image(
+
+            app.after(10000, lambda: display_message_and_image(
                 f'Please put Core For scanning', "Images/core.png", app))
 
     for tag in tags:
