@@ -198,42 +198,12 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
-    def findInMaterialRollLocationUsingLocationID(self, location_id) -> List[Tuple[int]]:
+    def findDeviceLocationIDInRFIDDeviceDetailsUsingDeviceIP(self, device_ip) -> List[Tuple[str]]:
         """
-            Fetches the Material_Core_ID from Material_Roll_Location table based on its Location_ID.
-            :param location_id: The id of the location of the rfid device.
-            :return: List[Tuple[
-                                Material_Core_ID
-                        ]]
-        """
-        db_connection = None
-        db_cursor = None
-        try:
-            db_connection = self.get_connection()  # Get a connection from connection pool
-            db_cursor = db_connection.cursor()
-            prepared_statement = """
-                                                 SELECT Material_Core_ID 
-                                                 FROM Material_Roll_Location 
-                                                 WHERE Location_ID = %s
-                                               """
-            db_cursor.execute(prepared_statement, (location_id,))
-            db_result = db_cursor.fetchall()  # Get query results
-            return db_result
-
-        except Exception as e:
-            print(f'Error from DatabaseOperations.findMaterialCoreIDInMaterialRollLocationUsingLocationID => {e}')
-        finally:
-            if db_cursor:
-                db_cursor.close()
-            if db_connection:
-                db_connection.close()
-
-    def findDeviceLocationInRFIDDeviceDetailsUsingDeviceIP(self, device_ip) -> List[Tuple[str]]:
-        """
-            Fetches the Device Location based on its DeviceIP.
+            Fetches the Device Location_ID based on its DeviceIP.
             :param device_ip: The ip address of the rfid device.
             :return: List[Tuple[
-                                Location
+                                Location_ID
                         ]]
         """
         db_connection = None
@@ -242,7 +212,7 @@ class DatabaseOperations:
             db_connection = self.get_connection()  # Get a connection from connection pool
             db_cursor = db_connection.cursor()
             prepared_statement = """
-                                            SELECT Location 
+                                            SELECT Location_ID 
                                             FROM RFID_Device_Details 
                                             WHERE Device_IP = %s
                                           """
@@ -251,7 +221,7 @@ class DatabaseOperations:
             return db_result
 
         except Exception as e:
-            print(f'Error from DatabaseOperations.findDeviceLocationInRFIDDeviceDetailsUsingDeviceIP => {e}')
+            print(f'Error from DatabaseOperations.findDeviceLocationIDInRFIDDeviceDetailsUsingDeviceIP => {e}')
         finally:
             if db_cursor:
                 db_cursor.close()
@@ -272,10 +242,10 @@ class DatabaseOperations:
             db_connection = self.get_connection()  # Get a connection from connection pool
             db_cursor = db_connection.cursor()
             prepared_statement = """
-                                            SELECT Reading_Mode 
-                                            FROM RFID_Device_Details 
-                                            WHERE Device_IP = %s
-                                          """
+                                    SELECT Reading_Mode 
+                                    FROM RFID_Device_Details 
+                                    WHERE Device_IP = %s
+                                  """
             db_cursor.execute(prepared_statement, (device_ip,))
             db_result = db_cursor.fetchall()  # Get query results
             return db_result
@@ -288,13 +258,43 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
-    def findAllDeviceIPAndLocationInRFIDDeviceDetails(self) -> List[Tuple[str, str]]:
+    def findLocationXYZInLocationTableUsingLocationID(self, location_id: str) -> List[Tuple[str]]:
         """
-        Fetches all the Device_IP and Location from the RFID_Device_Details table.
+            Fetches the LocationXYZ of the rfid reader device based on its Location_ID.
+            :param location_id: The id of the location of the rfid reader device.
+            :return: List[Tuple[
+                                LocationXYZ
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                       SELECT LocationXYZ 
+                                       FROM Location 
+                                       WHERE Location_ID = %s
+                                     """
+            db_cursor.execute(prepared_statement, (location_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findLocationXYZInLocationTableUsingLocationID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def findAllDeviceIPAndLocationIDInRFIDDeviceDetails(self) -> List[Tuple[str, str]]:
+        """
+        Fetches all the Device_IP and Location_ID from the RFID_Device_Details table.
 
         :return: List[Tuple[
                             Device_IP,
-                            Location
+                            Location_ID
                     ]]
         """
         db_connection = None
@@ -303,7 +303,7 @@ class DatabaseOperations:
             db_connection = self.get_connection()  # Get a connection from connection pool
             db_cursor = db_connection.cursor()
             prepared_statement = """
-                                    SELECT Device_IP, Location 
+                                    SELECT Device_IP, Location_ID
                                     FROM RFID_Device_Details 
                                   """
             db_cursor.execute(prepared_statement)

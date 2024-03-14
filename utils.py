@@ -28,17 +28,17 @@ stop_button_clicked = False  # To keep track of whether clicked on the stop butt
 # -------------------- Functions ------------------------------------
 
 
-def update_tooltip(ip, window, device_location, device_port):
+def update_tooltip(ip, window, device_location_xyz, device_port):
     """
         Function to update tooltip message if there is any update.
-        :param device_port:
-        :param device_location:
+        :param device_port: Port of the rfid device.
+        :param device_location_xyz: XYZ plane location of the rfid device.
         :param ip: Ip address of the rfid reader.
         :param window:  Window of the gui.
     """
     new_reading_mode_status = rfid_ip_reading_mode.get(ip, 'Not Available')
-    print(new_reading_mode_status, f"new reading mode status for ip {ip} {device_location}")
-    new_tooltip_text = f"IP: {ip}\nLocation: {device_location}\nPort: {device_port}\nReading Mode: " \
+    print(new_reading_mode_status, f"new reading mode status for ip {ip} {device_location_xyz}")
+    new_tooltip_text = f"IP: {ip}\nLocation: {device_location_xyz}\nPort: {device_port}\nReading Mode: " \
                        f"{new_reading_mode_status}"
     window[f'BUTTON_{ip}'].set_tooltip(new_tooltip_text)
     window.refresh()

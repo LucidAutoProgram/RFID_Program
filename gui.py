@@ -25,7 +25,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
     """
             Function to launch the GUI panel
             :param ip_addresses: List of ip addresses of the rfid reader.
-            :param ip_addresses_with_location: Tuple containing the ip address with its location.
+            :param ip_addresses_with_location: Tuple containing the ip address with its location id.
         """
     global ip, device_location, device_port, reading_mode, reading_mode_status, \
         reading_mode_from_queue, last_clicked_ip, clicked_ip
@@ -33,22 +33,27 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
     # Create two separate columns for box_maker and product_maker with location labels
     box_maker_column = []
     product_maker_column = []
-    # # Track the state (started/stopped) for each IP address
-    # ip_state = {ip: False for ip, device_location in ip_addresses_with_location}
+    extruder_column = []
 
     # Fetching Port
     device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip)
     device_port = device_port_result[0][0] if device_port_result else 'Not available'
     for ip, device_location in ip_addresses_with_location:
+        device_location_XYZ = server_connection_params.findLocationXYZInLocationTableUsingLocationID(
+            device_location)[0][0]
         # creating layout for rfid reader location
-        layout = create_rfid_layout(ip, 'red', device_location, device_port)
+        layout = create_rfid_layout(ip, 'red', device_location_XYZ, device_port)
 
         # Filtering box makers and manualFeeders rfid readers in one column and product maker rfid readers in one column
-        if 'BoxMaker' in device_location or 'ManualFeeding' in device_location:
+        if 'BoxMaker' in device_location_XYZ or 'ManualFeeding' in device_location_XYZ:
             box_maker_column.append([sg.Frame(title='', layout=layout, border_width=2,
                                               title_color='white', relief=sg.RELIEF_SUNKEN, background_color='black')])
-        elif 'ProductMaker' in device_location:
+        elif 'ProductMaker' in device_location_XYZ:
             product_maker_column.append([sg.Frame(title='', layout=layout, border_width=2,
+                                                  title_color='white', relief=sg.RELIEF_SUNKEN,
+                                                  background_color='black')])
+        elif 'Extruder' in device_location_XYZ:
+            extruder_column.append([sg.Frame(title='', layout=layout, border_width=2,
                                                   title_color='white', relief=sg.RELIEF_SUNKEN,
                                                   background_color='black')])
 
@@ -64,13 +69,13 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
         [sg.Text(f'Reading Mode:', background_color='black', text_color='white'),
          sg.Text('', background_color='black', text_color='white', key='READING')],
         [sg.Button('Start', key='START', visible=False), sg.Button('Stop', key='STOP', visible=False)]
-
     ]
 
     # Main Window Layout
     layout = [
         [sg.Column(box_maker_column, background_color='black'), sg.VSeparator(),
          sg.Column(product_maker_column, background_color='black', ), sg.VSeparator(),
+         sg.Column(extruder_column, background_color='black', ), sg.VSeparator(),
 
          # Display the rfid readers connection status and reading mode
          sg.Multiline(default_text='', size=(40, 10), key='SUMMARY', autoscroll=True, expand_x=True, expand_y=True,
@@ -128,15 +133,17 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(clicked_ip)
                 port = device_port_result[0][0] if device_port_result else 'Not available'
 
-                device_location_result = server_connection_params.findDeviceLocationInRFIDDeviceDetailsUsingDeviceIP(
+                device_location_result = server_connection_params.findDeviceLocationIDInRFIDDeviceDetailsUsingDeviceIP(
                     clicked_ip)
-                location = device_location_result[0][0] if device_location_result else 'Not available'
+                location_id = device_location_result[0][0] if device_location_result else None
+                locationXYZ_result = server_connection_params.findLocationXYZInLocationTableUsingLocationID(location_id)
+                locationXYZ = locationXYZ_result[0][0] if locationXYZ_result else 'Not Available'
 
                 reading_mode_status = rfid_ip_reading_mode.get(clicked_ip, 'Not Available')
 
                 # Update the display elements with the new device details
                 window['IP'].update(clicked_ip)
-                window['LOCATION'].update(location)
+                window['LOCATION'].update(locationXYZ)
                 window['PORT'].update(port)
                 window['READING'].update(reading_mode_status)
 
@@ -232,7 +239,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
         try:
             while not queue.empty():
                 ip_address, image_data, reading_mode_from_queue, ip_status_color = queue.get_nowait()
-                # it gone update the image if the reading mode is changed
+                # it is going to update the image if the reading mode is changed
                 window[f'IMAGE_{ip_address}'].update(data=image_data)
                 if ip_address == last_clicked_ip:
                     print(f'Reading mode for {ip_address} is {reading_mode_from_queue}')
@@ -256,12 +263,14 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 device_port_result = server_connection_params.findDevicePortInRFIDDeviceDetailsUsingDeviceIP(ip_address)
                 device_port = device_port_result[0][0] if device_port_result else 'Not available'
 
-                device_location_result = server_connection_params.findDeviceLocationInRFIDDeviceDetailsUsingDeviceIP(
-                    ip_address)
-                device_location = device_location_result[0][0] if device_location_result else 'Not available'
+                device_location_result = server_connection_params.findDeviceLocationIDInRFIDDeviceDetailsUsingDeviceIP(
+                    clicked_ip)
+                location_id = device_location_result[0][0] if device_location_result else None
+                locationXYZ_result = server_connection_params.findLocationXYZInLocationTableUsingLocationID(location_id)
+                locationXYZ = locationXYZ_result[0][0] if locationXYZ_result else 'Not Available'
 
                 # Updating the tooltip on any updates received from queue
-                update_tooltip(ip_address, window, device_location, device_port)
+                update_tooltip(ip_address, window, locationXYZ, device_port)
                 # Updating the summary on any updates received from the queue
                 update_summary(window, active_connections, ip_addresses_with_location, ip_status_color)
 

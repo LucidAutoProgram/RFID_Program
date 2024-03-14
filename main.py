@@ -8,7 +8,7 @@ if __name__ == '__main__':
     # the list of ip addresses stored in it.
 
     # Collection of tuples containing rfid reader ip with its location
-    ip_addresses_with_location = server_connection_params.findAllDeviceIPAndLocationInRFIDDeviceDetails()
+    ip_addresses_with_location = server_connection_params.findAllDeviceIPAndLocationIDInRFIDDeviceDetails()
 
     # Display the GUI window
     launch_gui(device_ips, ip_addresses_with_location)
