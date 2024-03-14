@@ -404,6 +404,36 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def findLocationXYZInLocationTableUsingLocationID(self, location_id: str) -> List[Tuple[str]]:
+        """
+            Fetches the LocationXYZ of the rfid reader device based on its Location_ID.
+            :param location_id: The id of the location of the rfid reader device.
+            :return: List[Tuple[
+                                LocationXYZ
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                       SELECT LocationXYZ 
+                                       FROM Location 
+                                       WHERE Location_ID = %s
+                                     """
+            db_cursor.execute(prepared_statement, (location_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findLocationXYZInLocationTableUsingLocationID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
     def updateMaterialCoreRFIDEndInMaterialCoreRFIDTable(self, material_core_rfid_end: datetime, rfid_tag: str,
                                                          material_core_id: int):
         """

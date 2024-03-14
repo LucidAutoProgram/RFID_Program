@@ -20,7 +20,8 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
     app.configure(background=background_color)
 
     # Creating the heading label with "Core Station" text
-    heading_label = tk.Label(app, text="CORE STATION", bg=background_color, fg="black", font=("Cambria", 24, 'bold'))
+    heading_label = tk.Label(app, text="EXTRUDER STATION", bg=background_color, fg="black",
+                             font=("Cambria", 24, 'bold'))
     heading_label.pack(pady=20)  # Use padding to space out the label from the window's top edge
 
     # Displaying the initial message and image to for the user to place the core for scanning
@@ -41,6 +42,15 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
             Function to handle window close event
             :return: None
         """
+        # Attempt to cancel all tasks
+        for task in asyncio.all_tasks(loop):
+            task.cancel()
+        try:
+            loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop)))
+        except asyncio.CancelledError:
+            # Expecting all tasks to be cancelled, so cancelled errors are ignored
+            pass
+
         loop.call_soon_threadsafe(loop.stop)  # Safely stop the asyncio loop from another thread
         app.destroy()  # Destroying the Tkinter window, effectively closing the application
 
@@ -60,8 +70,21 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
         """
 
         device_ips = [ip[0] for ip in server_connection_params.findAllDeviceIPInRFIDDeviceDetails()]
+        device_locations = []
+        for ip in device_ips:
+            location_ids_for_ip = server_connection_params.findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip)[0]
+            for location_id in location_ids_for_ip:
+                locations_XYZ_for_ip = server_connection_params.\
+                    findLocationXYZInLocationTableUsingLocationID(location_id)
+                if locations_XYZ_for_ip:
+                    device_locations.append(locations_XYZ_for_ip[0][0])
+                else:
+                    # Handle case where no location is found for the IP, possibly with a placeholder
+                    device_locations.append("Unknown Location")
+
+        print(f'Device ips {device_ips} with device locations XYZ- {device_locations}')
         # Scheduling the manage_rfid_readers coroutine to run in the asyncio loop
-        asyncio.run_coroutine_threadsafe(manage_rfid_readers(device_ips, app), loop)
+        asyncio.run_coroutine_threadsafe(manage_rfid_readers(device_ips, device_locations, app), loop)
 
     # Scheduling the asyncio task after a short delay to ensure everything is initialized properly
     app.after(100, schedule_asyncio_tasks)
@@ -73,5 +96,3 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
     # program
     loop.close()  # Closing the asyncio loop
     t.join()  # Waiting for the thread running the asyncio loop to finish
-
-
