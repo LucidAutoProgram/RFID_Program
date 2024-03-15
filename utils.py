@@ -299,9 +299,12 @@ async def listen_for_responses(ip_address):
             if response:
                 # Process response
                 rfid_tag = get_rfid_tag_info(response)
-                print(f'Received rfid tag response in hexadecimal format: {rfid_tag}')
-                rfid_tag_response_queue.put({rfid_tag, ip_address})
-                rfid_reader_last_response_time[ip_address] = datetime.now()
+                if rfid_tag:
+                    print(f'Received rfid tag response in hexadecimal format: {rfid_tag}')
+                    rfid_tag_response_queue.put({rfid_tag, ip_address})
+                    rfid_reader_last_response_time[ip_address] = datetime.now()
+                else:
+                    print('Empty rfid tag received.')
             else:
                 # Handle connection closed
                 print(f"Connection closed by reader {ip_address}")
@@ -310,138 +313,6 @@ async def listen_for_responses(ip_address):
         except Exception as e:
             print(f"Error listening to {ip_address}: {e}")
             break
-
-
-async def listen_for_responses(ip_address):
-    """
-        Continuously listen for responses from an RFID reader.
-        :param ip_address: Ip address of the rfid reader for which to listen response.
-    """
-    global active_connections, rfid_reader_last_response_time, reading_active
-
-    # Ensure a connection is established
-    if ip_address not in active_connections:
-        reader, writer = await open_net_connection(ip_address, port=2022)
-        if reader and writer:
-            active_connections[ip_address] = (reader, writer)
-            reading_active[ip_address] = True  # Enabling the reader in the reading mode
-            print(f"Connection established for listening on {ip_address}")
-        else:
-            print(f"Failed to establish connection for listening on {ip_address}")
-            return
-
-    reader, _ = active_connections[ip_address]
-    while reading_active[ip_address]:  # If the reader is in reading mode.
-        current_tags = set()  # Set for storing all the rfid_tags in a particular rfid scan session.
-        current_tags_datetime = {}  # To track the first scan datetime of each tag
-        scan_end_time = datetime.now() + timedelta(seconds=20)  # After scan end time, it writes all the scanned tag
-        # info to the database.
-        print(f'Reading is active for ip - {ip_address}')
-        print(f'Current date time - {datetime.now()} and scan end time is {scan_end_time}')
-
-        while datetime.now() < scan_end_time:  # Listening to the rfid reader response will continue for 20 seconds
-
-            print(f'--------------Started Listening to the rfid reader responses for ip - {ip_address}---------------')
-            try:
-                response = await asyncio.wait_for(reader.read(1024), timeout=1)
-                if response:
-                    # Process response
-                    rfid_tag = get_rfid_tag_info(response)
-                    print(f'Received rfid tag response in hexadecimal format: {rfid_tag}')
-                    current_datetime = datetime.now()
-
-                    # Process only new and unique RFID tag
-                    if rfid_tag and rfid_tag not in current_tags:
-                        current_tags.add(rfid_tag)
-                        current_tags_datetime[rfid_tag] = current_datetime
-                        print(f'New unique RFID tag received: {rfid_tag}')
-
-                    elif not rfid_tag:
-                        print(f"Received an empty RFID tag response for ip - {ip_address}, ignoring.")
-
-                    else:
-                        print(f"RFID tag {rfid_tag} for ip - {ip_address} already exists in the database or is a "
-                              f"duplicate in the current batch.")
-
-                    rfid_tag_response_queue.put({rfid_tag, ip_address})
-                    rfid_reader_last_response_time[ip_address] = datetime.now()
-
-                else:
-                    # Handle connection closed
-                    print(f"Connection closed by reader {ip_address}")
-                    break
-
-            except asyncio.TimeoutError:
-                # No data received but still within the scanning window, continue listening
-                continue
-
-            except Exception as e:
-                print(f"Error listening to {ip_address}: {e}")
-                break
-
-        if current_tags:  # If any tag found during the scan session
-            # Process tags after each scanning cycle - this is only for
-            print(f'Current tags received - {current_tags} for ip - {ip_address}')
-            await process_core_info_to_db(ip_address, current_tags, current_tags_datetime)
-
-        else:
-            print(f'No tags found in the scan session of the rfid reader with ip - {ip_address}')
-
-
-async def process_core_info_to_db(ip_address, tags, tag_scan_time):
-    """
-        Function to process the roll specs and rfid tag and its scan time info to the database.
-        :param ip_address: The ip address of the rfid reader.
-        :param tags: Rfid tags scanned by the reader.
-        :param tag_scan_time: Scanning time of the rfid tags.
-    """
-
-
-    # First, check if any of the tags already exists in the database
-    existing_core_id = None
-    for tag in tags:
-        result = server_connection_params.findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag(tag)
-        if result:
-            existing_core_id = result[0][0]
-            break  # Break the loop if any of the tags is found in the database
-
-    # If an existing rfid tag exists in the database use its existing Core_ID
-    if existing_core_id:
-        core_id = existing_core_id
-
-    else:
-        # If no existing RFID tag found in the database, then create a new Core_ID, incrementing by one from existing
-        # max Core_ID in the database for the rfid reader ip address where it is scanned
-
-        # Fetch the current max core_id in string format like '1.1.1' for a particular ip address of the rfid reader.
-        max_core_id_str = server_connection_params.findMaxCoreIdFromRollTrackingTableUsingDeviceIP(ip_address)
-
-        if max_core_id_str is not None:
-            # Parse and increment the core_id
-            parts = max_core_id_str.split('.')
-            last_number = int(parts[-1])  # Convert the last part to an integer
-            last_number += 1  # Increment the last part
-            incremented_core_id = '.'.join(parts[:-1] + [str(last_number)])  # Reconstruct the core_id
-            core_id = incremented_core_id
-
-        else:
-            # Create a new core_id from the IP address if not even a single core_id is found related to that particular
-            # Ip address
-            ip_parts = ip_address.split('.')
-
-            # Assuming the IP address format is always 'xxx.xxx.xxx.xxx'
-            new_core_id = f"{ip_parts[2]}.{ip_parts[3]}.1"
-            core_id = new_core_id
-
-    for tag in tags:
-        try:
-            # Fetch the correct scan time for each individual tag
-            scan_time = tag_scan_time[tag]
-            server_connection_params.writeToRollTrackingTable(ip_address, core_id, tag, scan_time)
-            print(f'Wrote {tag} to database with roll id {core_id}, scan time {scan_time}, and ip address '
-                  f'as - {ip_address}')
-        except Exception as e:
-            print(f"Error processing tag {tag} for IP {ip_address}: {e}")
 
 
 async def async_update_reading_mode_in_db(ip_addresses):
