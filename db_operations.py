@@ -472,11 +472,11 @@ class DatabaseOperations:
 # ----------------------- Establishing the connection ---------------------
 
 server_connection_params = DatabaseOperations(
-    host_ip='192.168.10.1',
+    host_ip='192.168.10.200',
     host_username='LucidAuto',
     db_password='Lucid@390',
     db_name='LucidAutoDB',
-    db_ip='192.168.10.1',
+    db_ip='192.168.10.200',
     db_port=3306,
     db_pool_name='server_db_pool',
     db_pool_size=5

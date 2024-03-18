@@ -3,9 +3,10 @@ from queue import Empty
 import PySimpleGUI as sg
 
 from db_operations import server_connection_params
+from rfid_api import start_reading_mode
 from utils import create_rfid_layout, setup_async_updates, start_reading, active_connections, stop_reading, \
     get_global_asyncio_loop, getRFIDResponseQueue, async_start_listening_response, rfid_ip_reading_mode, \
-    update_tooltip, update_summary
+    update_tooltip, update_summary, reading_active
 
 ip = None  # Ip address of the rfid reader.
 device_location = None  # Location of the rfid reader
@@ -75,6 +76,9 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
         [sg.Column(box_maker_column, background_color='black'), sg.VSeparator(),
          sg.Column(product_maker_column, background_color='black', ), sg.VSeparator(),
          sg.Column(extruder_column, background_color='black', ), sg.VSeparator(),
+
+         # Button for restarting all the rfid readers at the same time.
+         [sg.Button('Restart All Readers', key='START_ALL')],
 
          # Display the rfid readers connection status and reading mode
          sg.Multiline(default_text='', size=(40, 10), key='SUMMARY', autoscroll=True, expand_x=True, expand_y=True,
@@ -206,7 +210,30 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 print("Cannot stop reading. Connection not established or RFID reader offline.")
                 window[f'TERMINAL'].update(
                     f'Unable to stop RFID reading. RFID reader not available for ip :{last_clicked_ip}.\n', append=True)
-                # Check for new RFID tag responses and update the GUI
+
+        elif event == 'START_ALL':
+            # Iterate through all IP addresses
+            for ip_address in ip_addresses:
+                try:
+                    # Check if the connection is established with the rfid reader.
+                    if ip_address in active_connections:
+                        # Using the asyncio loop to send the start reading command
+                        loop = get_global_asyncio_loop()
+                        if loop is not None:
+                            reader, writer = active_connections[ip_address]
+                            asyncio.run_coroutine_threadsafe(start_reading_mode(reader, writer), loop)
+                            print(f"Sent start reading command to {ip_address}")
+                            reading_active[ip_address] = True
+
+                        else:
+                            print("Event loop not available for async operation.")
+                    else:
+                        print(f"Connection not established or RFID reader offline for ip: {ip_address}")
+
+                except Exception as e:
+                    # Log the exception if any error occurs during the start reading command process
+                    print(f"An error occurred while sending start command to {ip_address}: {e}")
+
         try:
             rfid_response_queue = getRFIDResponseQueue()
             while not rfid_response_queue.empty():
@@ -263,7 +290,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
                 device_port = device_port_result[0][0] if device_port_result else 'Not available'
 
                 device_location_result = server_connection_params.findDeviceLocationIDInRFIDDeviceDetailsUsingDeviceIP(
-                    clicked_ip)
+                    ip_address)
                 location_id = device_location_result[0][0] if device_location_result else None
                 locationXYZ_result = server_connection_params.findLocationXYZInLocationTableUsingLocationID(location_id)
                 locationXYZ = locationXYZ_result[0][0] if locationXYZ_result else 'Not Available'

@@ -38,6 +38,7 @@ def update_tooltip(ip, window, device_location_xyz, device_port):
     """
     new_reading_mode_status = rfid_ip_reading_mode.get(ip, 'Not Available')
     print(new_reading_mode_status, f"new reading mode status for ip {ip} {device_location_xyz}")
+    print(f'Tooltip text in update - ip - {ip} is - {device_location_xyz}')
     new_tooltip_text = f"IP: {ip}\nLocation: {device_location_xyz}\nPort: {device_port}\nReading Mode: " \
                        f"{new_reading_mode_status}"
     window[f'BUTTON_{ip}'].set_tooltip(new_tooltip_text)
@@ -57,16 +58,18 @@ def update_summary(window, active_connections, ip_addresses_with_location, ip_st
     online_summary_text = ""
     offline_summary_text = ""
 
-    for ip, location in ip_addresses_with_location:
+    for ip, location_id in ip_addresses_with_location:
+        locationXYZ_result = server_connection_params.findLocationXYZInLocationTableUsingLocationID(location_id)
+        locationXYZ = locationXYZ_result[0][0] if locationXYZ_result else 'Not Available'
         if ip in active_connections:
             status_color = ip_status_color.get(ip, 'yellow')  # Assume yellow if unknown
             if status_color == 'green':
                 read_mode = "[ONLINE] Reading mode is ON"
             else:
                 read_mode = "[ONLINE] Reading mode is OFF"
-            online_summary_text += f"{location} (IP: {ip}) {read_mode}\n\n"
+            online_summary_text += f"{locationXYZ} (IP: {ip}) {read_mode}\n\n"
         else:
-            offline_summary_text += f"{location} (IP: {ip}) [OFFLINE] Connection not established\n\n"
+            offline_summary_text += f"{locationXYZ} (IP: {ip}) [OFFLINE] Connection not established\n\n"
 
     # Update the summary terminal with online IPs at the top and offline IPs at the bottom
     final_summary_text = online_summary_text + offline_summary_text
@@ -100,6 +103,7 @@ def create_rfid_layout(ip, status_color, device_location, port):
     :return: Image and button displaying the status of the rfid and its location.
     """
     reading_mode_status = rfid_ip_reading_mode.get(ip, 'Unknown')
+    print(f'Tooltip location for {ip} - {device_location}')
 
     tooltip_text = f"IP: {ip}\nLocation: {device_location}\nPort: {port}\nReading Mode: {reading_mode_status}"
     return [
