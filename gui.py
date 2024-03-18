@@ -1,11 +1,40 @@
 import asyncio
 import tkinter as tk
 from threading import Thread
+from tkinter import ttk
+
 from db_operations import server_connection_params
-from utils import manage_rfid_readers, display_message_and_image
+from utils import manage_rfid_readers
 
 
-def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", background_color="white"):
+def message(message_frame, location):
+    message_text = f"No core for {location}"  # Initial message text
+    message_label = tk.Label(message_frame, text=message_text, bg="yellow", fg="black")
+    message_label.pack(expand=True, fill='both')
+    return message_label  # Return the label widget
+
+
+def create_location_frames(extruder_frame, device_locations):
+    message_labels = {}  # Dictionary to store label references
+    for index, location in enumerate(device_locations):
+        row = index // 2
+        column = index % 2
+
+        message_frame = tk.Frame(extruder_frame, bg="black", bd=2, relief="sunken")
+        message_frame.grid(row=row, column=column, padx=10, pady=10, sticky="nsew")
+        extruder_frame.grid_columnconfigure(column, weight=1, minsize=200)
+        extruder_frame.grid_rowconfigure(row, weight=1, minsize=100)
+
+        location_label = tk.Label(message_frame, text=location, bg="yellow", fg="black", font=('Cambria', 12))
+        location_label.pack(expand=True, fill='both')
+
+        # Store the message label and location label references
+        message_labels[location] = (message(message_frame, location), location_label)
+
+    return message_labels  # Return the dictionary of label references
+
+
+def create_core_dashboard_window(title="CORE DASHBOARD", size="1600x800", background_color="white"):
     """
         Initializing the main Tkinter application window
         :param title: Title of the gui window.
@@ -20,20 +49,20 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
     app.configure(background=background_color)
 
     # Creating the heading label with "Core Station" text
-    heading_label = tk.Label(app, text="EXTRUDER STATION", bg=background_color, fg="black",
+    heading_label = tk.Label(app, text="EXTRUDER ROLL STATION", bg=background_color, fg="black",
                              font=("Cambria", 24, 'bold'))
     heading_label.pack(pady=20)  # Use padding to space out the label from the window's top edge
 
-    # Displaying the initial message and image to for the user to place the core for scanning
-    app.after(0, lambda: display_message_and_image(
-        f'Please put Core For scanning', "Images/core.png", app))
+    # Creating the main message frame
+    extruder_frame = tk.Frame(app, bg="black", bd=4, relief="groove")
+    extruder_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.8, relheight=0.8)
 
     def start_asyncio_loop(loop):
         """
-            Function to start the asyncio event loop in a separate thread
-            :param loop: Separate event loop for the async operations.
-            :return: None
-        """
+                Function to start the asyncio event loop in a separate thread
+                :param loop: Separate event loop for the async operations.
+                :return: None
+            """
         asyncio.set_event_loop(loop)  # Setting the event loop for the asyncio operations
         loop.run_forever()  # Start the loop to run forever
 
@@ -74,17 +103,21 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
         for ip in device_ips:
             location_ids_for_ip = server_connection_params.findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip)[0]
             for location_id in location_ids_for_ip:
-                locations_XYZ_for_ip = server_connection_params.\
+                locations_XYZ_for_ip = server_connection_params. \
                     findLocationXYZInLocationTableUsingLocationID(location_id)
                 if locations_XYZ_for_ip:
                     device_locations.append(locations_XYZ_for_ip[0][0])
                 else:
                     # Handle case where no location is found for the IP, possibly with a placeholder
                     device_locations.append("Unknown Location")
+                # Filter locations that start with "Extruder"
+        extruder_locations = [loc for loc in device_locations if loc.startswith("Extruder")]
+
+        message_labels = create_location_frames(extruder_frame, extruder_locations)
 
         print(f'Device ips {device_ips} with device locations XYZ- {device_locations}')
         # Scheduling the manage_rfid_readers coroutine to run in the asyncio loop
-        asyncio.run_coroutine_threadsafe(manage_rfid_readers(device_ips, device_locations, app), loop)
+        asyncio.run_coroutine_threadsafe(manage_rfid_readers(device_ips, device_locations, app, message_labels), loop)
 
     # Scheduling the asyncio task after a short delay to ensure everything is initialized properly
     app.after(100, schedule_asyncio_tasks)

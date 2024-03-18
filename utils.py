@@ -11,44 +11,20 @@ reading_active = {}  # This dictionary keeps track of the ip addresses of the rf
 active_connections = {}  # Global storage for active connections
 
 
-def display_message_and_image(message, image_path, app):
+def update_message_label(message_labels, location, new_message,color):
     """
-        Function to display the image and message on the gui window.
-        :param message: Message to be displayed on the gui window.
-        :param image_path: Path of the image.
-        :param app: window of the gui.
-        :return: None
+    Update the text of the message label for a specific location.
+
+    :param message_labels: Dictionary of message label references keyed by location.
+    :param location: Location of the RFID reader.
+    :param new_message: New message text to display.
     """
-    # Opening the image file located at `image_path`
-    img = Image.open(image_path)
-
-    # Resizing the image to 150x150 pixels using Lanczos resampling for high quality
-    img = img.resize((150, 150), Image.Resampling.LANCZOS)
-
-    # Converting the PIL image to a format that Tkinter can use
-    photo = ImageTk.PhotoImage(img)
-
-    # Creating a frame within the `app` window to contain the message and image, with specific styling
-    message_frame = tk.Frame(app, bg="black", bd=4, relief="groove")
-
-    # Positioning the frame within the window, centered and taking up 80% of the width and 50% of the height
-    message_frame.place(relx=0.5, rely=0.6, anchor="center", relwidth=0.8, relheight=0.5)
-
-    # Creating a label within the frame for displaying the image, with a black background
-    image_label = tk.Label(message_frame, image=photo, bg="black")
-
-    # Keeping a reference to the image to prevent it from being garbage collected, ensuring it displays properly
-    image_label.image = photo
-
-    # Packing the image label on the left side of the frame, with some padding
-    image_label.pack(side="left", padx=10)
-
-    # Creating a label within the frame for displaying the message, styled with a white foreground and specific font
-    message_label = tk.Label(message_frame, text=message, bg="black", fg="white", font=("Cambria", 12),
-                             wraplength=240)  # The `wrap length` determines how text wraps in the label
-
-    # Packing the message label on the right side of the frame, allowing it to expand and fill the available space
-    message_label.pack(side="right", expand=True, fill="both", padx=10)
+    if location in message_labels:
+        message_label, location_label = message_labels[location]
+        message_label.config(text=new_message, bg=color)
+        location_label.config(bg=color)  # Assuming you also want to change the location label's background
+    else:
+        print(f"No message label for location: {location}")
 
 
 def get_rfid_tag_info(response):
@@ -69,7 +45,7 @@ def get_rfid_tag_info(response):
     return epc_hex
 
 
-async def manage_rfid_readers(reader_ips, reader_locations, app):
+async def manage_rfid_readers(reader_ips, reader_locations, app, message_labels):
     """
         Function to listen response of all the rfid readers.
         :param reader_ips: Ip address of the rfid reader.
@@ -78,12 +54,12 @@ async def manage_rfid_readers(reader_ips, reader_locations, app):
         :return: None
     """
 
-    tasks = [listen_for_extruder_reader_responses(ip, location, app) for ip, location in zip(reader_ips,
-                                                                                             reader_locations)]
+    tasks = [listen_for_extruder_reader_responses(ip, location, app, message_labels) for ip, location in zip(reader_ips,
+                                                                                                             reader_locations)]
     await asyncio.gather(*tasks)
 
 
-async def listen_for_extruder_reader_responses(ip_address, location, app):
+async def listen_for_extruder_reader_responses(ip_address, location, app, message_labels):
     """
         Continuously listen for responses from an RFID reader on the extruder side.
         :param ip_address: Ip address of the rfid reader for which to listen response.
@@ -121,30 +97,28 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                         print(f'Received rfid tag response in hexadecimal format: {rfid_tag}')
                         if rfid_tag:
                             # Below checking if any rfid tag scanned is having a core id in the database
-                            existing_core = server_connection_params.\
+                            existing_core = server_connection_params. \
                                 findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag(rfid_tag)
                             if existing_core:  # If having existing core id for the rfid tag scanned, then that means
-                                # core has been scanned before
-                                app.after(0, lambda: display_message_and_image(
-                                    f'Core is scanned on the core station and is good to use', "Images/pass.png", app))
+                                app.after(0, lambda: update_message_label(message_labels, location,
+                                                                          'Core scanned and is good to use.','green'))
                                 print(f"Core is scanned on the core station")
 
                             else:  # If no existing core id is found for the rfid tag scanned, then that means the core
                                 # is not scanned on the core station
-                                app.after(0, lambda: display_message_and_image(
-                                    f'Core is not scanned on the core station. Please scan the core on the core '
-                                    f'station, before use.', "Images/fail.png", app))
+                                app.after(0, lambda: update_message_label(message_labels, location,
+                                                                          'Core is not scanned .','red'))
                                 print(f"Please scan the core on the core station")
 
                         else:
-                            app.after(0, lambda: display_message_and_image(
-                                f'No rfid tag available to scan', "Images/fail.png", app))
+                            app.after(0, lambda: update_message_label(message_labels, location,
+                                                                      'NO tags.','red'))
                             print(f"NO rfid tags {ip_address}")
 
                     else:
                         # Handle connection closed
-                        app.after(0, lambda: display_message_and_image(
-                            f'No rfid tag available to scan', "Images/fail.png", app))
+                        # app.after(0, lambda: update_treeview_with_locations(tree, ip_address,
+                        #                                                     f'Connection closed by reader.'))
                         print(f"Connection closed by reader {ip_address}")
                         break
 
