@@ -89,121 +89,127 @@ async def listen_for_responses(ip_address, app):
     """
     global active_connections, reading_active
 
-    # Ensure a connection is established
-    if ip_address not in active_connections:
-        reader, writer = await open_net_connection(ip_address, port=2022)
-        if reader and writer:
-            active_connections[ip_address] = (reader, writer)
-            reading_active[ip_address] = True  # Enabling the reader in the reading mode
-            print(f"Connection established for listening on {ip_address}")
-        else:
-            print(f"Failed to establish connection for listening on {ip_address}")
-            return
+    if ip_address == '192.168.20.3':
 
-    reader, _ = active_connections[ip_address]
-    while reading_active[ip_address]:  # If the reader is in reading mode.
-        current_tags = set()  # Set for storing all the rfid_tags in a particular rfid scan session.
-        current_tags_datetime = {}  # To track the first scan datetime of each tag
-        scan_end_time = datetime.now() + timedelta(seconds=10)  # After scan end time, it writes all the scanned tag
-        # info to the database.
-        existing_rfid_tags = set()  # Set containing the existing rfid tags in the database
-        all_tags = set()
-        all_tags_datetime = {}
+        # Ensure a connection is established
+        if ip_address not in active_connections:
+            reader, writer = await open_net_connection(ip_address, port=2022)
+            if reader and writer:
+                active_connections[ip_address] = (reader, writer)
+                reading_active[ip_address] = True  # Enabling the reader in the reading mode
+                print(f"Connection established for listening on {ip_address}")
+            else:
+                print(f"Failed to establish connection for listening on {ip_address}")
+                return
 
-        while datetime.now() < scan_end_time:  # Listening to the rfid reader response will continue for 10 seconds
+        reader, _ = active_connections[ip_address]
+        while reading_active[ip_address]:  # If the reader is in reading mode.
+            current_tags = set()  # Set for storing all the rfid_tags in a particular rfid scan session.
+            current_tags_datetime = {}  # To track the first scan datetime of each tag
+            scan_end_time = datetime.now() + timedelta(seconds=10)  # After scan end time, it writes all the scanned tag
+            # info to the database.
+            existing_rfid_tags = set()  # Set containing the existing rfid tags in the database
+            all_tags = set()
+            all_tags_datetime = {}
 
-            print(f'--------------Started Listening to the rfid reader responses for ip - {ip_address}---------------')
-            try:
-                response = await asyncio.wait_for(reader.read(1024), timeout=1)
-                if response:
-                    # Process response
-                    rfid_tag = get_rfid_tag_info(response)
-                    print(f'Received rfid tag response in hexadecimal format: {rfid_tag}')
-                    if rfid_tag:
-                        current_datetime = datetime.now()
-                        all_tags.add(rfid_tag)
-                        all_tags_datetime[rfid_tag] = datetime.now()
+            while datetime.now() < scan_end_time:  # Listening to the rfid reader response will continue for 10 seconds
 
-                        device_id_list = server_connection_params.findRFIDDeviceIDInRFIDDeviceDetailsTableUsingDeviceIP(
-                            ip_address)
-                        if device_id_list:
-                            device_id = device_id_list[0][0]
+                print(f'--------------Started Listening to the rfid reader responses for ip - {ip_address}------------')
+                try:
+                    response = await asyncio.wait_for(reader.read(1024), timeout=1)
+                    if response:
+                        # Process response
+                        rfid_tag = get_rfid_tag_info(response)
+                        print(f'Received rfid tag response in hexadecimal format: {rfid_tag}')
+                        if rfid_tag:
+                            current_datetime = datetime.now()
+                            all_tags.add(rfid_tag)
+                            all_tags_datetime[rfid_tag] = datetime.now()
 
-                            location_id_list = server_connection_params.\
-                                findLocationIDInRFIDDeviceTableUsingRFIDDeviceID(device_id)
+                            device_id_list = server_connection_params. \
+                                findRFIDDeviceIDInRFIDDeviceDetailsTableUsingDeviceIP(ip_address)
+                            if device_id_list:
+                                device_id = device_id_list[0][0]
 
-                            if location_id_list:
-                                location_id = location_id_list[0][0]
+                                location_id_list = server_connection_params. \
+                                    findLocationIDInRFIDDeviceTableUsingRFIDDeviceID(device_id)
 
-                                material_core_id_list = server_connection_params. \
-                                    findMaterialCoreIDInMaterialRollLocationUsingLocationID(location_id)
-                                if material_core_id_list:
-                                    for material_core_id_tuple in material_core_id_list:
-                                        material_core_id = material_core_id_tuple[0]
+                                if location_id_list:
+                                    location_id = location_id_list[0][0]
 
-                                        rfid_tags_list = server_connection_params. \
-                                            findRFIDTagInMaterialCoreRFIDUsingMaterialCoreID(material_core_id)
-                                        if rfid_tags_list:
-                                            for rfid_tags_tuple in rfid_tags_list:
-                                                existing_rfid_tags.add(rfid_tags_tuple[0])
+                                    material_core_id_list = server_connection_params. \
+                                        findMaterialCoreIDInMaterialRollLocationUsingLocationID(location_id)
+                                    if material_core_id_list:
+                                        for material_core_id_tuple in material_core_id_list:
+                                            material_core_id = material_core_id_tuple[0]
 
-                        print('Existing rfid tags ', existing_rfid_tags)
+                                            rfid_tags_list = server_connection_params. \
+                                                findRFIDTagInMaterialCoreRFIDUsingMaterialCoreID(material_core_id)
+                                            if rfid_tags_list:
+                                                for rfid_tags_tuple in rfid_tags_list:
+                                                    existing_rfid_tags.add(rfid_tags_tuple[0])
 
-                        # Process only new and unique RFID
-                        if rfid_tag and rfid_tag not in current_tags and rfid_tag not in existing_rfid_tags:
-                            current_tags.add(rfid_tag)
-                            current_tags_datetime[rfid_tag] = current_datetime
-                            print(f'New unique RFID tag received: {rfid_tag}')
+                            print('Existing rfid tags ', existing_rfid_tags)
 
-                        elif not rfid_tag:
-                            print(f"Received an empty RFID tag response for ip - {ip_address}, ignoring.")
+                            # Process only new and unique RFID
+                            if rfid_tag and rfid_tag not in current_tags and rfid_tag not in existing_rfid_tags:
+                                current_tags.add(rfid_tag)
+                                current_tags_datetime[rfid_tag] = current_datetime
+                                print(f'New unique RFID tag received: {rfid_tag}')
+
+                            elif not rfid_tag:
+                                print(f"Received an empty RFID tag response for ip - {ip_address}, ignoring.")
+
+                            else:
+                                print(f"RFID tag {rfid_tag} for ip - {ip_address} already exists in the database or is "
+                                      f"a duplicate in the current batch.")
 
                         else:
-                            print(f"RFID tag {rfid_tag} for ip - {ip_address} already exists in the database or is a "
-                                  f"duplicate in the current batch.")
+                            app.after(0, lambda: display_message_and_image(
+                                f'NO RESPONSE', "Images/fail.png", app))
+                            print(f"NO rfid tags {ip_address}")
 
                     else:
+                        # Handle connection closed
                         app.after(0, lambda: display_message_and_image(
                             f'NO RESPONSE', "Images/fail.png", app))
-                        print(f"NO rfid tags {ip_address}")
+                        print(f"Connection closed by reader {ip_address}")
+                        break
 
-                else:
-                    # Handle connection closed
-                    app.after(0, lambda: display_message_and_image(
-                        f'NO RESPONSE', "Images/fail.png", app))
-                    print(f"Connection closed by reader {ip_address}")
+                except asyncio.TimeoutError:
+                    # No data received but still within the scanning window, continue listening
+                    continue
+
+                except Exception as e:
+                    print(f"Error listening to {ip_address}: {e}")
                     break
 
-            except asyncio.TimeoutError:
-                # No data received but still within the scanning window, continue listening
-                continue
+            # Checking if any tags have been received in the current RFID reader session
+            if all_tags:
+                # Checking if the number of tags in all_tags is equal to or more than three
+                if len(all_tags) >= 3:
+                    # Finding the intersection of all_tags and existing_rfid_tags to identify any repeated tags
+                    tags_repeated = all_tags.intersection(existing_rfid_tags)
 
-            except Exception as e:
-                print(f"Error listening to {ip_address}: {e}")
-                break
-
-        # Checking if any tags have been received in the current RFID reader session
-        if all_tags:
-            # Checking if the number of tags in all_tags is equal to or more than three
-            if len(all_tags) >= 3:
-                # Finding the intersection of all_tags and existing_rfid_tags to identify any repeated tags
-                tags_repeated = all_tags.intersection(existing_rfid_tags)
-
-                # If there are repeated tags even one tag then , it implies some or all tags have been scanned before
-                if tags_repeated:
-                    print('Core is already scanned.')
-                    await processCoreInfoToMaterialCoreRFIDTable(ip_address, all_tags, all_tags_datetime, app,
-                                                                 existing_rfid_tags, all_tags)
+                    # If there are repeated tags even one tag then , it implies some or all tags have been scanned
+                    # before
+                    if tags_repeated:
+                        print('Core is already scanned.')
+                        await processCoreInfoToMaterialCoreRFIDTable(ip_address, all_tags, all_tags_datetime, app,
+                                                                     existing_rfid_tags, all_tags)
+                    else:
+                        # If there are no repeated tags, it means all current tags are new
+                        await processCoreInfoToMaterialCoreRFIDTable(ip_address, current_tags, current_tags_datetime,
+                                                                     app, existing_rfid_tags, all_tags)
                 else:
-                    # If there are no repeated tags, it means all current tags are new
-                    await processCoreInfoToMaterialCoreRFIDTable(ip_address, current_tags, current_tags_datetime,
-                                                                 app, existing_rfid_tags, all_tags)
-            else:
-                # If there are less than 3 tags, calculating how many more are needed to proceed
-                tags_needed = 3 - len(all_tags)
-                # Prompting the user that more tags are needed for processing
-                app.after(0, lambda: display_message_and_image(
-                    f'RFID tags are less than 3. Need {tags_needed} more tag', "Images/fail.png", app))
+                    # If there are less than 3 tags, calculating how many more are needed to proceed
+                    tags_needed = 3 - len(all_tags)
+                    # Prompting the user that more tags are needed for processing
+                    app.after(0, lambda: display_message_and_image(
+                        f'RFID tags are less than 3. Need {tags_needed} more tag', "Images/fail.png", app))
+
+    else:
+        print(f'Not a core station rfid reader - {ip_address}')
 
 
 async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time, app, existing_tags,
@@ -222,6 +228,7 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
 
     # First, check if any of the tags already exists in the database
     existing_core_id = None
+    assign_new_core_id = False
     for tag in tags:
         result = server_connection_params.findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag(tag)
         if result:
@@ -229,14 +236,60 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
             print(existing_core_id, "core_id")
             break  # Break the loop if any of the tags is found in the database
 
-    # If an existing rfid tag exists in the database use its existing Core_ID
+    # Check if an existing rfid tag exists in the database use its existing Core_ID
     if existing_core_id:
-        core_id = existing_core_id
-        app.after(0, lambda: display_message_and_image(
-            f'Core is already scanned and assigned Core ID is {core_id} and is ready to use',
-            "Images/pass.png", app))
-        app.after(5000, lambda: display_message_and_image(
-            f'Please put Core For scanning', "Images/core.png", app))
+        existing_core_id_location_id = server_connection_params.findLocationIDInMaterialRollLocationUsingMaterialCoreID(
+            existing_core_id)
+        for location_id_tuple in existing_core_id_location_id:
+            location_id = location_id_tuple[0]
+            location_xyz = server_connection_params.findLocationXYZInLocationTableUsingLocationID(location_id)
+            if location_xyz and location_xyz[0][0].startswith('Extruder'):  # If the core_id has a location of extruder
+                # in the db
+                assign_new_core_id = True  # Flag for assigning new core id
+
+        if assign_new_core_id:
+            # If the core is not scanned on the extruder, then that means its a new core, assigning new core id.
+            max_core_id = server_connection_params.findMaxCoreIdFromMaterialCoreRFIDTable()
+
+            if max_core_id is not None:
+                core_id = max_core_id + 1  # Incrementing by 1 from the current maximum core id in the db, to
+                # create a new core id.
+                print(f'New core id {core_id} with same tags and location id {location_id}')
+                server_connection_params.writeToMaterialCoreTable(core_id)
+                server_connection_params.writeToMaterialRollLocation(core_id, location_id)
+
+                # Prompting the user that new core is successfully scanned and new core id is assigned
+                app.after(0, lambda: display_message_and_image(
+                    f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
+                    "Images/pass.png", app))
+
+                app.after(5000, lambda: display_message_and_image(
+                    f'Please put Core For scanning', "Images/core.png", app))
+
+            else:
+                # Create a new core_id, if not even a single core_id is found in the db
+                core_id = 1
+                server_connection_params.writeToMaterialCoreTable(core_id)
+                server_connection_params.writeToMaterialRollLocation(core_id, location_id)
+                print(f'New core id {core_id} with same tags and location id {location_id}')
+
+                # Prompting the user that new core is successfully scanned and new core id is assigned
+                app.after(0, lambda: display_message_and_image(
+                    f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
+                    "Images/pass.png", app))
+
+                app.after(5000, lambda: display_message_and_image(
+                    f'Please put Core For scanning', "Images/core.png", app))
+
+        else:  # If core is not scanned on the extruder, then that means, core is not used for roll creation,
+            # assigning same core id to it
+            core_id = existing_core_id
+            print('Existing core id with same tags and not scanned on extruder side')
+            app.after(0, lambda: display_message_and_image(
+                f'Core is already scanned and assigned Core ID is {core_id} and is ready to use',
+                "Images/pass.png", app))
+            app.after(5000, lambda: display_message_and_image(
+                f'Please put Core For scanning', "Images/core.png", app))
 
         # Case for handling missing tags
         missing_tags = existing_tags - all_received_tags
@@ -253,6 +306,7 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
         if max_core_id is not None:
             core_id = max_core_id + 1  # Incrementing by 1 from the current maximum core id in the db, to create a new
             #  core id.
+            print(f'New core id - {core_id} with totally new rfid tags')
             server_connection_params.writeToMaterialCoreTable(core_id)
             server_connection_params.writeToMaterialRollLocation(core_id, location_id)
 
@@ -267,6 +321,7 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
         else:
             # Create a new core_id, if not even a single core_id is found in the db
             core_id = 1
+            print(f'New core id - {core_id} with totally new rfid tags')
             server_connection_params.writeToMaterialCoreTable(core_id)
             server_connection_params.writeToMaterialRollLocation(core_id, location_id)
 
@@ -280,6 +335,11 @@ async def processCoreInfoToMaterialCoreRFIDTable(ip_address, tags, tag_scan_time
 
     for tag in tags:
         try:
+            if assign_new_core_id:  # If there are existing rfid tags, but it is a new core id
+                rfid_tag_start = tag_scan_time[tag]  # Time when the tag was first scanned.
+                server_connection_params.updateMaterialCoreIDAndMaterialCoreRFIDStartInMaterialCoreRFIDTable(core_id,
+                                                                                                             rfid_tag_start,
+                                                                                                             tag)
             # Fetch the correct scan time for each individual tag
             rfid_tag_start = tag_scan_time[tag]  # Time when the tag was first scanned.
             server_connection_params.writeToMaterialCoreRFIDTable(tag, core_id, rfid_tag_start)

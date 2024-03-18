@@ -140,7 +140,7 @@ class DatabaseOperations:
 
     def findLocationIDInRFIDDeviceTableUsingRFIDDeviceID(self, device_id: int) -> List[Tuple[str]]:
         """
-            Fetches the  Location_ID from RFID_Device table based on its RIFD_Device_ID.
+            Fetches the  Location_ID from RFID_Device table based on its RFID_Device_ID.
             :param device_id: The device id of the rfid device.
             :return: List[Tuple[
                                 Location_ID
@@ -162,6 +162,36 @@ class DatabaseOperations:
 
         except Exception as e:
             print(f'Error from DatabaseOperations.findLocationIDInRFIDDeviceTableUsingRFIDDeviceID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def findLocationIDInMaterialRollLocationUsingMaterialCoreID(self, material_core_id: int) -> List[Tuple[str]]:
+        """
+            Fetches the Location_ID from Material_Roll_Location table based on its Material_Core_ID.
+            :param material_core_id: The material core id assigned to each core.
+            :return: List[Tuple[
+                                Location_ID
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                                   SELECT Location_ID 
+                                                   FROM Material_Roll_Location 
+                                                   WHERE Material_Core_ID = %s
+                                                 """
+            db_cursor.execute(prepared_statement, (material_core_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findLocationIDInMaterialRollLocationUsingMaterialCoreID => {e}')
         finally:
             if db_cursor:
                 db_cursor.close()
@@ -374,6 +404,37 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def findLocationXYZInLocationTableUsingLocationID(self, location_id: str) -> List[Tuple[str]]:
+        """
+            Fetches the LocationXYZ of the rfid reader device based on its Location_ID.
+            :param location_id: The id of the location of the rfid reader device.
+            :return: List[Tuple[
+                                LocationXYZ
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                       SELECT LocationXYZ 
+                                       FROM Location 
+                                       WHERE Location_ID = %s
+                                     """
+            db_cursor.execute(prepared_statement, (location_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findLocationXYZInLocationTableUsingLocationID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+
     def updateReadingModeStatusInRFIDDeviceDetails(self, reading_mode: str, device_ip: str):
         """
             This function is for updating the status of rfid reading mode ('On' or 'Off') based on the device ip.
@@ -431,6 +492,40 @@ class DatabaseOperations:
             print(f'Updated end time for tag - {rfid_tag} with core id - {material_core_id}')
         except Exception as e:
             print(f'Error from DatabaseOperations.updateMaterialCoreRFIDEndInMaterialCoreRFIDTable => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def updateMaterialCoreIDAndMaterialCoreRFIDStartInMaterialCoreRFIDTable(self, material_core_id: int,
+                                                                            material_core_rfid_start: datetime,
+                                                                            rfid_tag: str):
+        """
+            This function is for updating the material_core_id and the material_core_rfid_start.
+            :param material_core_id: Id of the Core.
+            :param material_core_rfid_start: Time when the core was first scanned.
+            :param rfid_tag: Rfid tag scanned by the reader.
+            :return: None
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+
+            prepared_statement = """
+                                      UPDATE Material_Core_RFID 
+                                      SET Material_Core_ID = %s AND
+                                      Material_Core_RFID_Start = %s
+                                      WHERE RFID_Tag = %s
+                                   """
+
+            db_cursor.execute(prepared_statement, (material_core_id, material_core_rfid_start, rfid_tag))
+            db_connection.commit()
+        except Exception as e:
+            print(f'Error from DatabaseOperations.'
+                  f'updateMaterialCoreIDAndMaterialCoreRFIDStartInMaterialCoreRFIDTable => {e}')
         finally:
             if db_cursor:
                 db_cursor.close()
@@ -542,6 +637,12 @@ server_connection_params = DatabaseOperations(
     db_pool_name='server_db_pool',
     db_pool_size=5
 )
+
+# location_id = server_connection_params.findLocationIDInMaterialRollLocationUsingMaterialCoreID(1)
+# for id in location_id:
+#     print('Location id ', id[0])
+#     Location_xyz = server_connection_params.findLocationXYZInLocationTableUsingLocationID(id[0])
+#     print('Location xyz', Location_xyz)
 
 # existing_rfid_tags = set()
 #
