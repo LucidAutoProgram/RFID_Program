@@ -434,6 +434,36 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def findIfRFIDTagAndMaterialCoreIDExistsInMaterialCoreRFID(self, core_id: int, rfid_tag:int):
+        """
+            This function checks the existence of the RFID_Tag and Material_Core_ID in Material_Core_RFID table.
+            :param core_id: The id of the core.
+            :param rfid_tag: RFID tags scanned by the rfid reader.
+            :return: True or False
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                      SELECT COUNT(*) FROM
+                                      Material_Core_RFID 
+                                      WHERE Material_Core_ID = %s
+                                      AND RFID_Tag = %s
+                                 """
+            db_cursor.execute(prepared_statement, (core_id, rfid_tag))
+            db_result = db_cursor.fetchall()  # Get query results
+            # If the count is 0 (not exist), returning false and if greater than 0 (exists), returning True
+            return db_result[0][0] > 0
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findIfRFIDTagAndMaterialCoreIDExistsInMaterialCoreRFID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
 
     def findAllRFIDTagInMaterialCoreRFIDTable(self) -> List[Tuple[str]]:
         """
@@ -464,6 +494,34 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def findAllMaterialCoreIDInMaterialCoreTable(self) -> List[Tuple[str]]:
+        """
+           Fetches all the Material_Core_ID from the Material_Core table.
+
+        :return: List[Tuple[
+                            Material_Core_ID
+                    ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                       SELECT Material_Core_ID 
+                                       FROM Material_Core 
+                                     """
+            db_cursor.execute(prepared_statement)
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findAllMaterialCoreIDInMaterialCoreTable => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
 
     def updateReadingModeStatusInRFIDDeviceDetails(self, reading_mode: str, device_ip: str):
         """
@@ -528,13 +586,11 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
-    def updateMaterialCoreIDAndMaterialCoreRFIDStartInMaterialCoreRFIDTable(self, material_core_id: int,
-                                                                            material_core_rfid_start: datetime,
+    def updateMaterialCoreIDAndMaterialCoreRFIDStartInMaterialCoreRFIDTable(self, core_id: int,
                                                                             rfid_tag: str):
         """
-            This function is for updating the material_core_id and the material_core_rfid_start.
-            :param material_core_id: Id of the Core.
-            :param material_core_rfid_start: Time when the core was first scanned.
+            This function is for updating the material_core_id and the material_core_rfid_start with current datetime.
+            :param core_id: Core id assigned to the core.
             :param rfid_tag: Rfid tag scanned by the reader.
             :return: None
         """
@@ -545,14 +601,16 @@ class DatabaseOperations:
             db_cursor = db_connection.cursor()
 
             prepared_statement = """
-                                      UPDATE Material_Core_RFID 
-                                      SET Material_Core_ID = %s AND
-                                      Material_Core_RFID_Start = %s
+                                      UPDATE Material_Core_RFID
+                                      SET Material_Core_ID = %s,
+                                      Material_Core_RFID_Start = NOW()
                                       WHERE RFID_Tag = %s
                                    """
 
-            db_cursor.execute(prepared_statement, (material_core_id, material_core_rfid_start, rfid_tag))
+            db_cursor.execute(prepared_statement, (core_id, rfid_tag))
             db_connection.commit()
+            print(f'Successfully updated material core rfid table with core id - {core_id}, '
+                  f'where tag was - {rfid_tag}')
         except Exception as e:
             print(f'Error from DatabaseOperations.'
                   f'updateMaterialCoreIDAndMaterialCoreRFIDStartInMaterialCoreRFIDTable => {e}')
@@ -617,6 +675,7 @@ class DatabaseOperations:
 
             db_cursor.execute(prepared_statement, (material_core_id,))
             db_connection.commit()  # Save write work
+            print(f'Successfully wrote core id - {material_core_id} to db')
         except Exception as e:
             print(f'Error from DatabaseOperations.writeToMaterialCoreTable => {e}')
         finally:
@@ -624,7 +683,7 @@ class DatabaseOperations:
                 db_cursor.close()
                 db_connection.close()
 
-    def writeToMaterialRollLocation(self, material_core_id: int, location_id: int):
+    def writeToMaterialRollLocation(self, material_core_id: int, location_id: str):
         """
             Method with which to write to Material_Roll_Location table
 
@@ -647,11 +706,71 @@ class DatabaseOperations:
 
             db_cursor.execute(prepared_statement, (material_core_id, location_id))
             db_connection.commit()  # Save write work
+            print(f'Successfully wrote core id - {material_core_id} and location id - {location_id}')
         except Exception as e:
             print(f'Error from DatabaseOperations.writeToMaterialCoreTable => {e}')
         finally:
             if db_connection and db_connection.is_connected():
                 db_cursor.close()
+                db_connection.close()
+
+    def updateCoreReuseStatusInMaterialCoreRFIDTable(self):
+        """
+            Function to update the Core_Reuse_Status in Material_Core_RFID table based on whether
+            a RFID_Tag is associated with more than one Material_Core_ID, and if any tag with the same
+            Material_Core_ID has a Core_Reuse_Status of 0, then updates the Core_Reuse_Status to 0
+            for that tag as well.
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Assume this gets a valid DB connection
+            db_cursor = db_connection.cursor()
+
+            # First, update Core_Reuse_Status based on multiple associations
+            query_update_reuse_status_based_on_multiplicity = """
+                                                                UPDATE Material_Core_RFID mc
+                                                                JOIN (
+                                                                    SELECT RFID_Tag
+                                                                    FROM Material_Core_RFID
+                                                                    GROUP BY RFID_Tag
+                                                                    HAVING COUNT(DISTINCT Material_Core_ID) > 1
+                                                                ) derived USING (RFID_Tag)
+                                                                SET Core_Reuse_Status = 0;
+                                                               """
+            db_cursor.execute(query_update_reuse_status_based_on_multiplicity)
+
+            # Next, update tags associated with any Core_IDs that have been reused
+            query_propagate_reuse_status = """
+                                            UPDATE Material_Core_RFID mc
+                                            JOIN (
+                                                SELECT Material_Core_ID
+                                                FROM Material_Core_RFID
+                                                WHERE Core_Reuse_Status = 0
+                                            ) reused_cores USING (Material_Core_ID)
+                                            SET Core_Reuse_Status = 0;
+                                           """
+            db_cursor.execute(query_propagate_reuse_status)
+
+            # Finally, update the remaining tags to 1 (not reused)
+            query_update_remaining_tags = """
+            UPDATE Material_Core_RFID
+            SET Core_Reuse_Status = 1
+            WHERE Core_Reuse_Status IS NULL;
+            """
+            db_cursor.execute(query_update_remaining_tags)
+
+            db_connection.commit()  # Commit the transaction
+            print("Core_Reuse_Status updated successfully.")
+
+        except Exception as e:
+            print(f"Error updating Core_Reuse_Status: {e}")
+            db_connection.rollback()  # Rollback in case of an error
+
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
                 db_connection.close()
 
 
@@ -667,36 +786,3 @@ server_connection_params = DatabaseOperations(
     db_pool_name='server_db_pool',
     db_pool_size=5
 )
-
-# location_id = server_connection_params.findLocationIDInMaterialRollLocationUsingMaterialCoreID(1)
-# for id in location_id:
-#     print('Location id ', id[0])
-#     Location_xyz = server_connection_params.findLocationXYZInLocationTableUsingLocationID(id[0])
-#     print('Location xyz', Location_xyz)
-
-# existing_rfid_tags = set()
-#
-# device_id_list = server_connection_params.findRFIDDeviceIDInRFIDDeviceDetailsTableUsingDeviceIP(
-#     '192.168.20.3')
-# if device_id_list:
-#     device_id = device_id_list[0][0]
-#
-#     location_id_list = server_connection_params.findLocationIDInRFIDDeviceTableUsingRFIDDeviceID(
-#         device_id)
-#
-#     if location_id_list:
-#         location_id = location_id_list[0][0]
-#
-#         material_core_id_list = server_connection_params. \
-#             findMaterialCoreIDInMaterialRollLocationUsingLocationID(location_id)
-#         if material_core_id_list:
-#             for material_core_id_tuple in material_core_id_list:
-#                 material_core_id = material_core_id_tuple[0]
-#
-#                 rfid_tags_list = server_connection_params. \
-#                     findRFIDTagInMaterialCoreRFIDUsingMaterialCoreID(material_core_id)
-#                 if rfid_tags_list:
-#                     for rfid_tags_tuple in rfid_tags_list:
-#                         existing_rfid_tags.add(rfid_tags_tuple[0])
-#
-# print('Existing rfid tags ', existing_rfid_tags)

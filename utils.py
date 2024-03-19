@@ -109,8 +109,9 @@ async def listen_for_responses(ip_address, app):
             scan_end_time = datetime.now() + timedelta(seconds=10)  # After scan end time, it writes all the scanned tag
             # info to the database.
             existing_rfid_tags = set()  # Set containing the existing rfid tags in the database
-            all_tags = set()
+            all_tags = set()  # All tags are stored in this set, which are scanned particular session of 10 seconds.
             all_tags_datetime = {}
+            response_received = False  # Flag to keep track of, if response is received from the reader or not.
 
             while datetime.now() < scan_end_time:  # Listening to the rfid reader response will continue for 10 seconds
 
@@ -118,6 +119,7 @@ async def listen_for_responses(ip_address, app):
                 try:
                     response = await asyncio.wait_for(reader.read(1024), timeout=1)
                     if response:
+                        response_received = True
                         # Process response
                         rfid_tag = get_rfid_tag_info(response)
                         print(f'Received rfid tag response in hexadecimal format: {rfid_tag}')
@@ -184,6 +186,11 @@ async def listen_for_responses(ip_address, app):
                     print(f"Error listening to {ip_address}: {e}")
                     break
 
+            if not response_received:  # If no response is received from the reader.
+                print('No tags received')
+                app.after(0, lambda: display_message_and_image(
+                    f'Please put Core For scanning', "Images/core.png", app))
+
             # Checking if any tags have been received in the current RFID reader session
             if all_tags:
                 # Checking if the number of tags in all_tags is equal to or more than three
@@ -195,12 +202,12 @@ async def listen_for_responses(ip_address, app):
                     # before
                     if tags_repeated:
                         print('Core is already scanned.')
-                        await processCoreInfo(ip_address, all_tags, all_tags_datetime, app,
-                                                                     existing_rfid_tags, all_tags)
+                        await processCoreInfo(ip_address, all_tags, all_tags_datetime, app, existing_rfid_tags,
+                                              all_tags)
                     else:
                         # If there are no repeated tags, it means all current tags are new
                         await processCoreInfo(ip_address, current_tags, current_tags_datetime,
-                                                                     app, existing_rfid_tags, all_tags)
+                                              app, existing_rfid_tags, all_tags)
                 else:
                     # If there are less than 3 tags, calculating how many more are needed to proceed
                     tags_needed = 3 - len(all_tags)
@@ -212,8 +219,7 @@ async def listen_for_responses(ip_address, app):
         print(f'Not a core station rfid reader - {ip_address}')
 
 
-async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags,
-                                                 all_received_tags):
+async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, all_received_tags):
     """
        Function to process the core specs and rfid tag and its scan time info to the database.
        :param ip_address: The ip address of the rfid reader.
@@ -232,9 +238,9 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags,
     assign_new_core_id = False
     for tag in tags:
         result = server_connection_params.findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag(tag)
+        print('Result', result)
         if result:
-            existing_core_id = result[0][0]
-            print(existing_core_id, "core_id")
+            existing_core_id = result[-1][0]
             break  # Break the loop if any of the tags is found in the database
 
     # Check if an existing rfid tag exists in the database use its existing Core_ID
@@ -245,11 +251,12 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags,
             location_id = location_id_tuple[0]
             location_xyz = server_connection_params.findLocationXYZInLocationTableUsingLocationID(location_id)
             if location_xyz and location_xyz[0][0].startswith('Extruder'):  # If the core_id has a location of extruder
-                # in the db, i.e. the core is getting reused and it was scanned on the extruder before, for making the roll, so assigning new core id.
+                # in the db, i.e. the core is getting reused, and it was scanned on the extruder before, for making the
+                # roll, so assigning new core id.
                 assign_new_core_id = True  # Flag for assigning new core id
 
         if assign_new_core_id:
-            # If the core is scanned on the extruder, then that means its a new core, assigning new core id.
+            # If the core is scanned on the extruder, then that means it is a new core, assigning new core id.
             max_core_id = server_connection_params.findMaxCoreIdFromMaterialCoreRFIDTable()
 
             if max_core_id is not None:
@@ -259,50 +266,27 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags,
                 server_connection_params.writeToMaterialCoreTable(core_id)
                 server_connection_params.writeToMaterialRollLocation(core_id, loc_id)
 
-                for tag in tags:
-                    rfid_tag_start = tag_scan_time[tag]  # Time when the tag was scanned.
-                    # Updating the core id and tag scan date time, when assigning the new core id to the existing rfid tag
-                    server_connection_params.updateMaterialCoreIDAndMaterialCoreRFIDStartInMaterialCoreRFIDTable(core_id, rfid_tag_start, tag)
-
                 # Prompting the user that reused core is successfully scanned and new core id is assigned
                 app.after(0, lambda: display_message_and_image(
                     f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
                     "Images/pass.png", app))
 
-                app.after(5000, lambda: display_message_and_image(
-                    f'Please put Core For scanning', "Images/core.png", app))
-
-            # else:
-            #     # Create a new core_id starting with 1, if not even a single core_id is found in the db
-            #     core_id = 1
-            #     server_connection_params.writeToMaterialCoreTable(core_id)
-            #     server_connection_params.writeToMaterialRollLocation(core_id, location_id)
-            #     print(f'First new core id {core_id} with same tags. Reusing the core.')
-
-            #     # Prompting the user that new core is successfully scanned and new core id is assigned
-            #     app.after(0, lambda: display_message_and_image(
-            #         f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
-            #         "Images/pass.png", app))
-
-            #     app.after(5000, lambda: display_message_and_image(
-            #         f'Please put Core For scanning', "Images/core.png", app))
-
         else:  # If core is not scanned on the extruder, then that means, core is not used for roll creation,
-            # assigning same core id to it, because same core is getting scanned repeatly on the core station without being used on the extruder station.
+            # assigning same core id to it, because same core is getting scanned repeatedly on the core station without
+            # being used on the extruder station.
             core_id = existing_core_id
             print(f'Existing core id - {core_id} with same tags and not scanned on extruder side')
             app.after(0, lambda: display_message_and_image(
                 f'Core is already scanned and assigned Core ID is {core_id} and is ready to use',
                 "Images/pass.png", app))
-            app.after(5000, lambda: display_message_and_image(
-                f'Please put Core For scanning', "Images/core.png", app))
 
         # Case for handling missing tags
         missing_tags = existing_tags - all_received_tags
+        print('Missing tags ', missing_tags)
         if missing_tags:  # If there ar missing tags, let's say when reusing the core.
             for missing_tag in missing_tags:
                 server_connection_params.updateMaterialCoreRFIDEndInMaterialCoreRFIDTable(datetime.now(), missing_tag,
-                                                                                          core_id)
+                                                                                          existing_core_id)
 
     else:
         # If no existing RFID tag found in the database, then create a new Material_Core_ID
@@ -314,41 +298,41 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags,
             #  core id.
             print(f'New core id - {core_id} with totally new rfid tags')
             server_connection_params.writeToMaterialCoreTable(core_id)
-            server_connection_params.writeToMaterialRollLocation(core_id, location_id)
+            server_connection_params.writeToMaterialRollLocation(core_id, loc_id)
 
             # Prompting the user that new core is successfully scanned and new core id is assigned
             app.after(0, lambda: display_message_and_image(
                 f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
                 "Images/pass.png", app))
-
-            app.after(5000, lambda: display_message_and_image(
-                f'Please put Core For scanning', "Images/core.png", app))
 
         else:
             # Create a new core_id, if not even a single core_id is found in the db
             core_id = 1
             print(f'New core id - {core_id} with totally new rfid tags')
             server_connection_params.writeToMaterialCoreTable(core_id)
-            server_connection_params.writeToMaterialRollLocation(core_id, location_id)
+            server_connection_params.writeToMaterialRollLocation(core_id, loc_id)
 
             # Prompting the user that new core is successfully scanned and new core id is assigned
             app.after(0, lambda: display_message_and_image(
                 f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
                 "Images/pass.png", app))
 
-            app.after(5000, lambda: display_message_and_image(
-                f'Please put Core For scanning', "Images/core.png", app))
-
     for tag in tags:
         try:
-            all_rfid_tags_in_db = server_connection_params.findAllRFIDTagInMaterialCoreRFIDTable()
-            if tag not in all_rfid_tags_in_db:  # If the rfid tag received is not present in the db
-                # Fetch the correct scan time for each individual tag
+
+            # Check if this rfid_tag and core_id combination already exists in the database
+            if not server_connection_params.findIfRFIDTagAndMaterialCoreIDExistsInMaterialCoreRFID(core_id, tag):
                 rfid_tag_start = tag_scan_time[tag]  # Time when the tag was first scanned.
                 server_connection_params.writeToMaterialCoreRFIDTable(tag, core_id, rfid_tag_start)
                 print(f'Wrote {tag} to database with core id {core_id}, scan time {rfid_tag_start}')
+
             else:
-                print(f"Received rfid tag {tag} is already present in the Material_Core_RFID table, so cannot write the tag info to that table.")
+                print(f"Received rfid tag {tag} is already present in the Material_Core_RFID table and is assigned "
+                      f"core id - {core_id}, so cannot write the tag info to that table.")
+
+            # Function to update the Core_Reuse_Status, telling whether core has been reused, 0 means core reused and
+            # 1 means not reused.
+            server_connection_params.updateCoreReuseStatusInMaterialCoreRFIDTable()
 
         except Exception as e:
             print(f"Error processing tag {tag}: {e}")
