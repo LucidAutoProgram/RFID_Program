@@ -435,6 +435,36 @@ class DatabaseOperations:
                 db_connection.close()
 
 
+    def findAllRFIDTagInMaterialCoreRFIDTable(self) -> List[Tuple[str]]:
+        """
+           Fetches all the RFID_Tag from the Material_Core_RFID table.
+
+        :return: List[Tuple[
+                            RFID_Tag
+                    ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                    SELECT RFID_Tag 
+                                    FROM Material_Core_RFID 
+                                  """
+            db_cursor.execute(prepared_statement)
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findAllRFIDTagInMaterialCoreRFIDTable => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+
     def updateReadingModeStatusInRFIDDeviceDetails(self, reading_mode: str, device_ip: str):
         """
             This function is for updating the status of rfid reading mode ('On' or 'Off') based on the device ip.
