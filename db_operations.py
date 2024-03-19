@@ -198,6 +198,37 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def findLocationIDInMaterialRollLocationUsingMaterialCoreID(self, core_id: str) -> List[Tuple[int]]:
+        """
+            Fetches the Location_ID from Material_Roll_Location table based on its Core_ID.
+            :param core_id: The id of the CORE .
+            :return: List[Tuple[
+                                Location_ID
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                                 SELECT Location_ID 
+                                                 FROM Material_Roll_Location 
+                                                 WHERE Material_Core_ID = %s
+                                               """
+            db_cursor.execute(prepared_statement, (core_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations'
+                  f'.findLocationIDInMaterialRollLocationUsingMaterialCoreID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
     def findRFIDTagInMaterialCoreRFIDUsingMaterialCoreID(self, material_core_id: int) -> List[Tuple[str]]:
         """
             Fetches the RFID_Tag from Material_Core_RFID table based on its Material_Core_ID.
@@ -557,6 +588,32 @@ class DatabaseOperations:
         finally:
             if db_connection and db_connection.is_connected():
                 db_cursor.close()
+                db_connection.close()
+
+    def checkExistingRecord(self, material_core_id, location_id):
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from the connection pool
+            db_cursor = db_connection.cursor()
+            query = """
+                    SELECT COUNT(*) FROM Material_Roll_Location
+                    WHERE Material_Core_ID = %s AND Location_ID = %s
+                    """
+            db_cursor.execute(query, (material_core_id, location_id))
+            db_result = db_cursor.fetchone()  # Fetch the first row of the result
+            if db_result[0] > 0:
+                return True  # Record exists
+            else:
+                return False  # Record does not exist
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.checkExistingRecord => {e}')
+            return False  # no record exists in case of error
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
                 db_connection.close()
 
 

@@ -8,8 +8,8 @@ from utils import manage_rfid_readers
 
 
 def message(message_frame, location):
-    message_text = f"No core for {location}"  # Initial message text
-    message_label = tk.Label(message_frame, text=message_text, bg="yellow", fg="black")
+    message_text = f"No core on {location}.\n Please put core for scanning"  # Initial message text
+    message_label = tk.Label(message_frame, text=message_text, bg="yellow", fg="black", font=('Cambria', 15))
     message_label.pack(expand=True, fill='both')
     return message_label  # Return the label widget
 
@@ -25,7 +25,7 @@ def create_location_frames(extruder_frame, device_locations):
         extruder_frame.grid_columnconfigure(column, weight=1, minsize=200)
         extruder_frame.grid_rowconfigure(row, weight=1, minsize=100)
 
-        location_label = tk.Label(message_frame, text=location, bg="yellow", fg="black", font=('Cambria', 12))
+        location_label = tk.Label(message_frame, text=location, bg="yellow", fg="black", font=('Cambria', 15))
         location_label.pack(expand=True, fill='both')
 
         # Store the message label and location label references
