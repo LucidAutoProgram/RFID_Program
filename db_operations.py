@@ -168,6 +168,35 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def findAllRFIDTagsInMaterialCoreRFID(self) -> List[Tuple[str]]:
+        """
+           Fetches all the rfid_tags from the Material_Core_RFID table.
+
+        :return: List[Tuple[
+                            RFID_Tag
+                    ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                     SELECT RFID_Tag 
+                                     FROM Material_Core_RFID 
+                                   """
+            db_cursor.execute(prepared_statement)
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findAllRFIDTagsInMaterialCoreRFID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
     def findMaterialCoreIDInMaterialRollLocationUsingLocationID(self, location_id: str) -> List[Tuple[int]]:
         """
             Fetches the Material_Core_ID from Material_Roll_Location table based on its Location_ID.
