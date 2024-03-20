@@ -708,7 +708,37 @@ class DatabaseOperations:
             db_connection.commit()  # Save write work
             print(f'Successfully wrote core id - {material_core_id} and location id - {location_id}')
         except Exception as e:
-            print(f'Error from DatabaseOperations.writeToMaterialCoreTable => {e}')
+            print(f'Error from DatabaseOperations.writeToMaterialRollLocation => {e}')
+        finally:
+            if db_connection and db_connection.is_connected():
+                db_cursor.close()
+                db_connection.close()
+
+    def writeToMaterialRollTable(self, material_core_id: int):
+        """
+            Method with which to write to Material_Roll table
+
+            :param material_core_id: Unique id for each core. It is assigned after scanning the tags on the core.
+
+            :return: Null
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+
+            prepared_statement = """
+                                      INSERT INTO Material_Roll(
+                                      Material_Core_ID) 
+                                      VALUES (%s);
+                                  """
+
+            db_cursor.execute(prepared_statement, (material_core_id,))
+            db_connection.commit()  # Save write work
+            print(f'Successfully wrote core id - {material_core_id} to material roll location table')
+        except Exception as e:
+            print(f'Error from DatabaseOperations.writeToMaterialRollTable => {e}')
         finally:
             if db_connection and db_connection.is_connected():
                 db_cursor.close()
