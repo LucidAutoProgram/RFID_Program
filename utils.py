@@ -266,6 +266,7 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
                 server_connection_params.writeToMaterialCoreTable(core_id)
                 server_connection_params.writeToMaterialRollLocation(core_id, loc_id)
                 server_connection_params.writeToMaterialRollTable(core_id, core_id)
+                server_connection_params.writeMaterialRoleIDToMaterialRollLengthTable(core_id)
 
                 # Prompting the user that reused core is successfully scanned and new core id is assigned
                 app.after(0, lambda: display_message_and_image(
@@ -301,6 +302,7 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
             server_connection_params.writeToMaterialCoreTable(core_id)
             server_connection_params.writeToMaterialRollLocation(core_id, loc_id)
             server_connection_params.writeToMaterialRollTable(core_id, core_id)
+            server_connection_params.writeMaterialRoleIDToMaterialRollLengthTable(core_id)
 
             # Prompting the user that new core is successfully scanned and new core id is assigned
             app.after(0, lambda: display_message_and_image(
@@ -314,6 +316,7 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
             server_connection_params.writeToMaterialCoreTable(core_id)
             server_connection_params.writeToMaterialRollLocation(core_id, loc_id)
             server_connection_params.writeToMaterialRollTable(core_id, core_id)
+            server_connection_params.writeMaterialRoleIDToMaterialRollLengthTable(core_id)
 
             # Prompting the user that new core is successfully scanned and new core id is assigned
             app.after(0, lambda: display_message_and_image(
