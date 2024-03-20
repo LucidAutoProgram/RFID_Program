@@ -714,10 +714,11 @@ class DatabaseOperations:
                 db_cursor.close()
                 db_connection.close()
 
-    def writeToMaterialRollTable(self, material_core_id: int):
+    def writeToMaterialRollTable(self, material_roll_id: int, material_core_id: int):
         """
             Method with which to write to Material_Roll table
 
+            :param material_roll_id: material roll id assigned to roll.
             :param material_core_id: Unique id for each core. It is assigned after scanning the tags on the core.
 
             :return: Null
@@ -730,13 +731,15 @@ class DatabaseOperations:
 
             prepared_statement = """
                                       INSERT INTO Material_Roll(
+                                      Material_Roll_ID,
                                       Material_Core_ID) 
-                                      VALUES (%s);
+                                      VALUES (%s, %s);
                                   """
 
-            db_cursor.execute(prepared_statement, (material_core_id,))
+            db_cursor.execute(prepared_statement, (material_roll_id, material_core_id))
             db_connection.commit()  # Save write work
-            print(f'Successfully wrote core id - {material_core_id} to material roll location table')
+            print(f'Successfully wrote role id - {material_roll_id} core id - {material_core_id} to material roll '
+                  f'location table')
         except Exception as e:
             print(f'Error from DatabaseOperations.writeToMaterialRollTable => {e}')
         finally:
