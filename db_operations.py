@@ -109,9 +109,63 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def findAllWorkOrderNumberInWorkOrderMainTable(self) -> List[Tuple[str]]:
+        """
+           Fetches all the WorkOrder_Number from the WorkOrder_main table.
+
+        :return: List[Tuple[
+                            WorkOrder_Number
+                    ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                      SELECT WorkOrder_Number 
+                                      FROM WorkOrder_main 
+                                    """
+            db_cursor.execute(prepared_statement)
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findAllWorkOrderNumberInWorkOrderMainTable => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def findMaxWorkOrderIDFromWorkOrderMainTable(self) -> int:
+        """
+            Fetches the maximum WorkOrder_ID from the WorkOrder_main table.
+            :return: The maximum WorkOrder_ID.
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                    SELECT MAX(WorkOrder_ID) FROM WorkOrder_main
+                                 """
+            db_cursor.execute(prepared_statement)
+            db_result = db_cursor.fetchone()
+            if db_result and db_result[0] is not None:
+                return db_result[0]
+        except Exception as e:
+            print(f'Error fetching maximum WorkOrder_ID: {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
     def findWorkOrderNumberFromWorkOrderMainTableUsingWorkOrderID(self, work_order_id: int) -> List[Tuple[str]]:
         """
-            Fetches the WorkOrder_Number from WorkOrder_Main table based on its WorkOrder_ID.
+            Fetches the WorkOrder_Number from WorkOrder_main table based on its WorkOrder_ID.
             :param work_order_id: The id of the work order assigned to particular roll.
             :return: List[Tuple[
                                 WorkOrder_Number
@@ -124,7 +178,7 @@ class DatabaseOperations:
             db_cursor = db_connection.cursor()
             prepared_statement = """
                                         SELECT WorkOrder_Number 
-                                        FROM WorkOrder_Main 
+                                        FROM WorkOrder_main 
                                         WHERE WorkOrder_ID = %s
                                  """
             db_cursor.execute(prepared_statement, (work_order_id,))
@@ -139,9 +193,9 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
-    def findMaterialRollIDInMaterialRollLengthTableUsingMaterialCoreID(self, material_core_id: int) -> List[Tuple[int]]:
+    def findMaterialRollIDInMaterialRollTableUsingMaterialCoreID(self, material_core_id: int) -> List[Tuple[int]]:
         """
-            Fetches the Material_Roll_ID from Material_Roll_Length based on its Material_Core_ID.
+            Fetches the Material_Roll_ID from Material_Roll based on its Material_Core_ID.
             :param material_core_id: The ID of the core.
             :return: List[Tuple[
                                 Material_Roll_ID
@@ -154,7 +208,7 @@ class DatabaseOperations:
             db_cursor = db_connection.cursor()
             prepared_statement = """
                                             SELECT Material_Roll_ID 
-                                            FROM Material_Roll_Length
+                                            FROM Material_Roll
                                             WHERE Material_Core_ID = %s
                                           """
             db_cursor.execute(prepared_statement, (material_core_id,))
@@ -163,7 +217,7 @@ class DatabaseOperations:
 
         except Exception as e:
             print(f'Error from DatabaseOperations.'
-                  f'findMaterialRollIDInMaterialRollLengthTableUsingMaterialCoreID => {e}')
+                  f'findMaterialRollIDInMaterialRollTableUsingMaterialCoreID => {e}')
         finally:
             if db_cursor:
                 db_cursor.close()
@@ -194,6 +248,8 @@ class DatabaseOperations:
 
             db_cursor.execute(prepared_statement, write_operation)
             db_connection.commit()  # Save write work
+            print(f'Successfully wrote work order id - {work_order_id} with location id - {location_id} to work order'
+                  f'assignment table')
         except Exception as e:
             print(f'Error from DatabaseOperations.writeToWorkOrderAssignmentTable => {e}')
         finally:
@@ -203,7 +259,7 @@ class DatabaseOperations:
 
     def writeToWorkOrderMainTable(self, work_order_id: int, work_order_number: str):
         """
-            Method with which to write to WorkOrder_Main table
+            Method with which to write to WorkOrder_main table
 
             :param work_order_id: The work order id assigned to a particular roll.
             :param work_order_number: The work order number assigned to particular roll.
@@ -218,15 +274,17 @@ class DatabaseOperations:
 
             write_operation = (work_order_id, work_order_number)
             prepared_statement = """
-                                      INSERT INTO WorkOrder_Main (
-                                      WorkOrder_ID, WorkOrder_Name) 
+                                      INSERT INTO WorkOrder_main (
+                                      WorkOrder_ID, WorkOrder_Number) 
                                       VALUES (%s, %s);
                                  """
 
             db_cursor.execute(prepared_statement, write_operation)
             db_connection.commit()  # Save write work
+            print(f'Successfully wrote work order id - {work_order_id} with work order number - {work_order_number} to'
+                  f'WorkOrder_main table')
         except Exception as e:
-            print(f'Error from DatabaseOperations.writeToWorkOrderAssignmentTable => {e}')
+            print(f'Error from DatabaseOperations.writeToWorkOrderMainTable => {e}')
         finally:
             if db_connection and db_connection.is_connected():
                 db_cursor.close()
@@ -234,7 +292,7 @@ class DatabaseOperations:
 
     def writeToWorkOrderScheduledTable(self, work_order_id: int):
         """
-            Method with which to write to WorkOrder_Main table.
+            Method with which to write to WorkOrder_Scheduled table.
 
             :param work_order_id: The work order id assigned to a particular roll.
 
@@ -255,6 +313,8 @@ class DatabaseOperations:
 
             db_cursor.execute(prepared_statement, write_operation)
             db_connection.commit()  # Save write work
+            print(f'Successfully wrote work order id - {work_order_id} to WorkOrder_Scheduled table')
+
         except Exception as e:
             print(f'Error from DatabaseOperations.writeToWorkOrderScheduledTable => {e}')
         finally:
@@ -292,6 +352,66 @@ class DatabaseOperations:
         except Exception as e:
             print(f'Error from DatabaseOperations.'
                   f'updateMaterialRollLengthAndMaterialRollNumOfTurnsInMaterialRollLengthTable => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def updateMaterialRollCreationStartTimeInMaterialRollLengthTable(self, material_roll_id: int):
+        """
+            This function is for updating Material_Roll_Creation_StartTime in Material_Roll_Length table.
+            :param material_roll_id: material roll id of the roll.
+            :return: None
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+
+            update_operation = (material_roll_id,)
+            prepared_statement = """
+                                    UPDATE Material_Roll_Length 
+                                    SET Material_Roll_Creation_StartTime = NOW()
+                                    WHERE Material_Roll_ID = %s
+                                 """
+
+            db_cursor.execute(prepared_statement, update_operation)
+            db_connection.commit()
+        except Exception as e:
+            print(f'Error from DatabaseOperations.'
+                  f'updateMaterialRollCreationStartTimeInMaterialRollLengthTable => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def updateMaterialRollCreationEndTimeInMaterialRollLengthTable(self, material_roll_id: int):
+        """
+            This function is for updating Material_Roll_Creation_EndTime in Material_Roll_Length table.
+            :param material_roll_id: material roll id of the roll.
+            :return: None
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+
+            update_operation = (material_roll_id,)
+            prepared_statement = """
+                                    UPDATE Material_Roll_Length 
+                                    SET Material_Roll_Creation_EndTime = NOW()
+                                    WHERE Material_Roll_ID = %s
+                                 """
+
+            db_cursor.execute(prepared_statement, update_operation)
+            db_connection.commit()
+        except Exception as e:
+            print(f'Error from DatabaseOperations.'
+                  f'updateMaterialRollCreationEndTimeInMaterialRollLengthTable => {e}')
         finally:
             if db_cursor:
                 db_cursor.close()
@@ -894,6 +1014,76 @@ class DatabaseOperations:
         finally:
             if db_connection and db_connection.is_connected():
                 db_cursor.close()
+                db_connection.close()
+
+    def findWorkOrderIDFromWorkOrderAssignmentTableUsingLocationID(self, location_ID: str) -> List[Tuple[str]]:
+        """
+            Fetches the WorkOrder_ID from the WorkOrder_Assignment table based on the Location_ID.
+            :param location_ID: location where rfid tags are getting scanned
+
+            :return: List[Tuple[
+                                WorkOrder_ID
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                      SELECT DISTINCT WorkOrder_ID 
+                                      FROM WorkOrder_Assignment
+                                      WHERE Location_ID = %s 
+                                    """
+            db_cursor.execute(prepared_statement, (location_ID,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findWorkOrderIDFromWorkOrderAssignmentTableUsingLocationID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def findMaterialRollSpecsFromMaterialRollLengthTableUsingMaterialRollID(self, material_roll_id: int) -> \
+            List[Tuple[int, datetime, datetime, int]]:
+        """
+            Fetches the MaterialRoll Specification from the Material_Roll_Length table based on the Material_Roll_ID.
+            :param material_roll_id: location where rfid tags are getting scanned
+
+            :return: List[Tuple[
+                                Material_Roll_Length,
+                                Material_Roll_Creation_StartTime,
+                                Material_Roll_Creation_EndTime,
+                                Material_Roll_Num_of_Turns,
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                    SELECT DISTINCT Material_Roll_Length,
+                                    Material_Roll_Creation_StartTime,
+                                    Material_Roll_Creation_EndTime,
+                                    Material_Roll_Num_of_Turns
+                                    FROM Material_Roll_Length
+                                    WHERE Material_Roll_ID = %s 
+                                  """
+            db_cursor.execute(prepared_statement, (material_roll_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findMaterialRollSpecsFromMaterialRollLengthTableUsingMaterialRollID '
+                  f'=> {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
                 db_connection.close()
 
 
