@@ -189,11 +189,8 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
 
                                         else:
                                             if core_location.startswith('CoreStation'):
+
                                                 print('Core is scanned on core station')
-                                                server_connection_params.writeToMaterialRollTable(material_core_id,
-                                                                                                  material_core_id)
-                                                server_connection_params.writeMaterialRoleIDToMaterialRollLengthTable(
-                                                    material_core_id)
 
                                                 app.after(0, lambda: update_message_label(location_labels[location],
                                                                                           f"Core is  scanned at"
