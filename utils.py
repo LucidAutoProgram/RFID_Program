@@ -95,7 +95,7 @@ def generateUniqueWorkOrderNumber():
     return work_order_number
 
 
-def processWorkOrderIDAndNumberToDB(location_id):
+async def processWorkOrderIDAndNumberToDB(location_id):
     """
         Function to do assignment of WorkOrder_ID, WorkOrder_Number and Location_ID in the db.
     :param location_id: Location id of the roll.
@@ -108,7 +108,7 @@ def processWorkOrderIDAndNumberToDB(location_id):
     server_connection_params.writeToWorkOrderScheduledTable(work_order_id)
 
 
-def processMaterialRollSpecs(material_roll_id):
+async def processMaterialRollSpecs(material_roll_id):
     """
         Function to update the roll specs like roll length, number of turns, roll creation start time and end time.
         :param material_roll_id: Roll ID assigned to the roll.
@@ -127,7 +127,8 @@ def processMaterialRollSpecs(material_roll_id):
         server_connection_params. \
             updateMaterialRollLengthAndMaterialRollNumOfTurnsInMaterialRollLengthTable(roll_length, roll_turns,
                                                                                        material_roll_id)
-        time.sleep(1)  # Adding a sleep of 1 sec with an assumption that roll takes 1 second to complete one turn.
+        await asyncio.sleep(1)  # Adding a sleep of 1 sec with an assumption that roll takes 1 second to
+        # complete one turn.
 
     # Function for updating the roll making start time - when roll making is finished
     server_connection_params.updateMaterialRollCreationEndTimeInMaterialRollLengthTable(material_roll_id)
@@ -174,7 +175,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
         print(f"Initializing listening for {ip_address}")
         while reading_active[ip_address]:  # If the reader is in reading mode.
             print(f"Reading active for {ip_address}")
-            scan_end_time = datetime.now() + timedelta(seconds=10)  # After scan end time, it writes all the scanned tag
+            scan_end_time = datetime.now() + timedelta(seconds=5)  # After scan end time, it writes all the scanned tag
             response_received = False  # Initialize the response received flag to False at the start of each scanning
             session_rfid_tags = set()
             all_stored_tags = set()
@@ -267,6 +268,9 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                                                              'Core is not scanned on core station.\n'
                                                                              'Scan it on core station before using it.'
                                                                              ''))
+                                            app.after(0,
+                                                      lambda: update_message(roll_details[location],
+                                                                             'No Information to display.'))
 
                                         else:
                                             if core_location.startswith('CoreStation'):
@@ -288,7 +292,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
 
                                                     material_roll_id_list = server_connection_params. \
                                                         findMaterialRollIDInMaterialRollTableUsingMaterialCoreID(
-                                                        material_core_id)
+                                                            material_core_id)
 
                                                     if not material_roll_id_list:  # if the material roll id is not
                                                         # assigned yet, then work order assignment can be made.
@@ -298,22 +302,15 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                                             material_core_id, material_core_id)
                                                         server_connection_params. \
                                                             writeMaterialRoleIDToMaterialRollLengthTable(
-                                                            material_core_id)
+                                                                material_core_id)
 
                                                         # -------- Doing the work order assignment below ----------
-                                                        executor = ThreadPoolExecutor(max_workers=1)
-                                                        # Run the synchronous database operation in a separate
-                                                        # thread
-                                                        await asyncio.get_event_loop(). \
-                                                            run_in_executor(executor,
-                                                                            processWorkOrderIDAndNumberToDB,
-                                                                            current_location_ID)
+
+                                                        asyncio.create_task(processWorkOrderIDAndNumberToDB(
+                                                            current_location_ID))
 
                                                         # ------- Assigning the roll specs, like length, turns etc ----
-                                                        # await asyncio.get_event_loop(). \
-                                                        #     run_in_executor(executor,
-                                                        #                     processMaterialRollSpecs,
-                                                        #                     material_core_id)
+                                                        asyncio.create_task(processMaterialRollSpecs(material_core_id))
 
                                                     else:
                                                         print('Already assigned roll id and work order to roll, '
@@ -324,15 +321,14 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                                             findWorkOrderIDFromWorkOrderAssignmentTableUsingLocationID(
                                                                 current_location_ID)
 
-                                                        # roll_specs = server_connection_params. \
-                                                        #     findMaterialRollSpecsFromMaterialRollLengthTableUsingMaterialRollID(
-                                                        #      material_roll_id)
-                                                        #
-                                                        # print(roll_specs,'roll_specs')
-                                                        #
-                                                        # roll_len, roll_start_time, roll_end_time, roll_turns = \
-                                                        #     roll_specs[0]
+                                                        roll_specs = server_connection_params. \
+                                                            findMaterialRollSpecsFromMaterialRollLengthTableUsingMaterialRollID(
+                                                                material_roll_id)
 
+                                                        print('Roll Specs', roll_specs)
+
+                                                        roll_len, roll_start_time, roll_end_time, roll_turns = \
+                                                            roll_specs[0]
 
                                                         for ids in work_order_IDs:
                                                             wo_id = ids[0]  # Extract the ID from the tuple
@@ -347,19 +343,19 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                                                     f'Work Order ID: {wo_id}, Work Order Number: '
                                                                     f'{work_order_number}')
 
-                                                        app.after(0,
-                                                                  lambda: update_message(roll_details[location],
-                                                                                         f'Work Order Number -> '
-                                                                                         f'{work_order_number}\n'
-                                                                                         f'Roll ID ->{material_roll_id}\n'
-                                                                                         f'Location -> {location}\n'
-                                                                                         # f'Roll Length -> {roll_len}\n'
-                                                                                         # f'Roll Turns -> {roll_turns}\n'
-                                                                                         # f'Roll Creation Start time -> '
-                                                                                         # f'{roll_start_time}\n'
-                                                                                         # f'Roll Creation End Time->'
-                                                                                         # f'{roll_end_time}'
-                                                                                         ))
+                                                                app.after(0,
+                                                                          lambda: update_message(roll_details[location],
+                                                                                                 f'Work Order Number -> '
+                                                                                                 f'{work_order_number}\n'
+                                                                                                 f'Roll ID ->{material_roll_id}\n'
+                                                                                                 f'Location -> {location}\n'
+                                                                                                 f'Roll Length -> {roll_len}\n'
+                                                                                                 f'Roll Turns -> {roll_turns}\n'
+                                                                                                 f'Roll Creation Start time -> '
+                                                                                                 f'{roll_start_time}\n'
+                                                                                                 f'Roll Creation End Time->'
+                                                                                                 f'{roll_end_time}'
+                                                                                                 ))
 
             else:
                 print(f"Core is  not scanned on the core station")
