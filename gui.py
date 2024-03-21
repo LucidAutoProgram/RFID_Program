@@ -1,8 +1,6 @@
 import asyncio
 import tkinter as tk
 from threading import Thread
-from tkinter import ttk
-
 from db_operations import server_connection_params
 from utils import manage_rfid_readers, location_labels, location_color
 
@@ -97,13 +95,15 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="1600x800", backgr
             extruder_frame.grid_columnconfigure(column, weight=1, minsize=200)
             extruder_frame.grid_rowconfigure(row, weight=1, minsize=100)
 
-            location_label = tk.Label(message_frame, text=location, bg="yellow", fg="black", font=('Cambria', 15))
+            location_label = tk.Label(message_frame, text=location, bg="yellow", fg="black", font=('Cambria', 18,
+                                                                                                   'bold italic'))
             location_label.pack(expand=True, fill='both')
 
             # mapping location to location_label for updating background color
             location_color[location] = location_label
 
-            message_label = tk.Label(message_frame, text='No Core', bg="yellow", fg="black", font=('Cambria', 15))
+            message_label = tk.Label(message_frame, text='No Core for scanning. Please Put Core For Scanning',
+                                     bg="yellow", fg="black", font=('Cambria', 18, 'bold italic'))
             message_label.pack(expand=True, fill='both')
 
             # mapping location to message_label for updating background color and message text

@@ -238,7 +238,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
 
             if not response_received:
                 app.after(0, lambda: update_message_label(location_labels[location],
-                                                          f"No Core for Scanning .\n Please put core on {location}"
+                                                          f"No Core for Scanning.\n Please put core on {location}"
                                                           f" for scanning.",
                                                           "yellow"))
                 app.after(0, lambda: update_color(location_color[location],
