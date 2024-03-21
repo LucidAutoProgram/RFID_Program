@@ -44,7 +44,7 @@ def display_message_and_image(message, image_path, app):
     image_label.pack(side="left", padx=10)
 
     # Creating a label within the frame for displaying the message, styled with a white foreground and specific font
-    message_label = tk.Label(message_frame, text=message, bg="black", fg="white", font=("Cambria", 12),
+    message_label = tk.Label(message_frame, text=message, bg="black", fg="white", font=("Cambria", 18, 'bold italic'),
                              wraplength=240)  # The `wrap length` determines how text wraps in the label
 
     # Packing the message label on the right side of the frame, allowing it to expand and fill the available space
@@ -189,7 +189,7 @@ async def listen_for_responses(ip_address, app):
             if not response_received:  # If no response is received from the reader.
                 print('No tags received')
                 app.after(0, lambda: display_message_and_image(
-                    f'Please put Core For scanning', "Images/core.png", app))
+                    f'Please Put Core For scanning', "Images/core.png", app))
 
             # Checking if any tags have been received in the current RFID reader session
             if all_tags:

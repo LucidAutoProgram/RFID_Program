@@ -699,10 +699,10 @@ class DatabaseOperations:
             db_cursor = db_connection.cursor()
 
             prepared_statement = """
-                                           INSERT INTO Material_Roll_Location(
-                                           Material_Core_ID, Location_ID) 
-                                           VALUES (%s, %s);
-                                        """
+                                   INSERT INTO Material_Roll_Location(
+                                   Material_Core_ID, Location_ID) 
+                                   VALUES (%s, %s);
+                                 """
 
             db_cursor.execute(prepared_statement, (material_core_id, location_id))
             db_connection.commit()  # Save write work

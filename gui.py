@@ -25,7 +25,7 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", backgro
 
     # Displaying the initial message and image to for the user to place the core for scanning
     app.after(0, lambda: display_message_and_image(
-        f'Please put Core For scanning', "Images/core.png", app))
+        f'Please Put Core For scanning', "Images/core.png", app))
 
     def start_asyncio_loop(loop):
         """
