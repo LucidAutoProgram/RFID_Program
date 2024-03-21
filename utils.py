@@ -153,9 +153,11 @@ async def listen_for_extruder_reader_responses(ip_address, location):
 
                                         else:
                                             if core_location.startswith('CoreStation'):
-                                                print(ip_address, 'ip')
-                                                print(f"Location ID {location_id} starts with 'core'")
                                                 print(f"Core is  scanned ")
+                                                server_connection_params.writeToMaterialRollTable(material_core_id,
+                                                                                                  material_core_id)
+                                                server_connection_params.writeMaterialRoleIDToMaterialRollLengthTable(
+                                                    material_core_id)
 
                                             current_location_IDs = server_connection_params.\
                                                 findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip_address)
