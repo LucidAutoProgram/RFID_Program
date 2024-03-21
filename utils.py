@@ -1,9 +1,6 @@
 from datetime import datetime, timedelta
 import asyncio
-import tkinter as tk
-from PIL import Image, ImageTk
 from db_operations import server_connection_params
-
 from rfid_api import open_net_connection
 
 # -------------------- Global Variables declarations ------------------
@@ -81,8 +78,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
     """
     global active_connections, reading_active, processed_core_ids
 
-    if location.startswith('Extruder'):
-        # Only continue if the reader is located in one of extruder location.
+    if location.startswith('Extruder'):  # Only continue if the reader is located in one of extruder location.
 
         # Ensure a connection is established
         if ip_address not in active_connections:
@@ -152,12 +148,11 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                             print(existing_core_location_IDs, "id")
 
                             # Determining if the last location ID in the list matches the current location ID
-                            last_location_id_in_list = existing_core_location_IDs[-1][
-                                0] if existing_core_location_IDs else None
+                            last_location_id_in_list = existing_core_location_IDs[-1][0] if existing_core_location_IDs \
+                                else None
 
-                            current_location_IDs = (server_connection_params.
-                            findLocationIDInRFIDDeviceDetailsUsingDeviceIP(
-                                ip_address))
+                            current_location_IDs = server_connection_params.\
+                                findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip_address)
 
                             if current_location_IDs:
                                 # Extract the first Location_ID from the result
@@ -165,7 +160,6 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
 
                                 # checking the last location if the last location and current location is same then
                                 # filter the last location
-
                                 if last_location_id_in_list == current_location_ID:
                                     filtered_core_location_IDs = [id for id in existing_core_location_IDs if
                                                                   id[0] != last_location_id_in_list]
@@ -195,8 +189,11 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
 
                                         else:
                                             if core_location.startswith('CoreStation'):
-                                                print(ip_address, 'ip')
-                                                print(f"Location ID {location_id} starts with 'core'")
+                                                print('Core is scanned on core station')
+                                                server_connection_params.writeToMaterialRollTable(material_core_id,
+                                                                                                  material_core_id)
+                                                server_connection_params.writeMaterialRoleIDToMaterialRollLengthTable(
+                                                    material_core_id)
 
                                                 app.after(0, lambda: update_message_label(location_labels[location],
                                                                                           f"Core is  scanned at"
@@ -207,14 +204,12 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                                                                   "green"))
                                                 print(f"Core is  scanned ")
 
-                                            current_location_IDs = (server_connection_params.
-                                            findLocationIDInRFIDDeviceDetailsUsingDeviceIP(
-                                                ip_address))
+                                            current_location_IDs = server_connection_params.\
+                                                findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip_address)
 
                                             if current_location_IDs:
                                                 # Extract the first Location_ID from the result
-                                                current_location_ID = current_location_IDs[0][
-                                                    0]
+                                                current_location_ID = current_location_IDs[0][0]
 
                                                 # Check if this combination is already in the database
                                                 if not server_connection_params.checkExistingRecord(
@@ -235,7 +230,6 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
 
                 # If no existing core id is found for the rfid tag scanned, then that means the core
                 # is not scanned on the core station
-
                 app.after(0, lambda: update_message_label(location_labels[location],
                                                           f"Core is not scanned at core station.\n Scan it at core "
                                                           f"Station before using it",

@@ -645,8 +645,71 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def writeToMaterialRollTable(self, material_roll_id: int, material_core_id: int):
+        """
+            Method with which to write to Material_Roll table
 
-# ----------------------- Establishing the connection ---------------------
+            :param material_roll_id: material roll id assigned to roll.
+            :param material_core_id: Unique id for each core. It is assigned after scanning the tags on the core.
+
+            :return: Null
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+
+            prepared_statement = """
+                                         INSERT INTO Material_Roll(
+                                         Material_Roll_ID,
+                                         Material_Core_ID) 
+                                         VALUES (%s, %s);
+                                     """
+
+            db_cursor.execute(prepared_statement, (material_roll_id, material_core_id))
+            db_connection.commit()  # Save write work
+            print(f'Successfully wrote role id - {material_roll_id} core id - {material_core_id} to material roll '
+                  f'table')
+        except Exception as e:
+            print(f'Error from DatabaseOperations.writeToMaterialRollTable => {e}')
+        finally:
+            if db_connection and db_connection.is_connected():
+                db_cursor.close()
+                db_connection.close()
+
+    def writeMaterialRoleIDToMaterialRollLengthTable(self, material_roll_id: int):
+        """
+            Method with which to write Material_Roll_ID to Material_Roll table
+
+            :param material_roll_id: material roll id assigned to roll.
+
+            :return: Null
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+
+            prepared_statement = """
+                                           INSERT INTO Material_Roll_Length(
+                                           Material_Roll_ID) 
+                                           VALUES (%s);
+                                       """
+
+            db_cursor.execute(prepared_statement, (material_roll_id,))
+            db_connection.commit()  # Save write work
+            print(f'Successfully wrote role id - {material_roll_id} to material roll length table')
+        except Exception as e:
+            print(f'Error from DatabaseOperations.writeMaterialRoleIDToMaterialRollLengthTable => {e}')
+        finally:
+            if db_connection and db_connection.is_connected():
+                db_cursor.close()
+                db_connection.close()
+
+
+# ----------------------- Establishing the database connection ---------------------
 
 server_connection_params = DatabaseOperations(
     host_ip='192.168.10.1',
@@ -659,29 +722,3 @@ server_connection_params = DatabaseOperations(
     db_pool_size=5
 )
 
-# existing_rfid_tags = set()
-#
-# device_id_list = server_connection_params.findRFIDDeviceIDInRFIDDeviceDetailsTableUsingDeviceIP(
-#     '192.168.20.3')
-# if device_id_list:
-#     device_id = device_id_list[0][0]
-#
-#     location_id_list = server_connection_params.findLocationIDInRFIDDeviceTableUsingRFIDDeviceID(
-#         device_id)
-#
-#     if location_id_list:
-#         location_id = location_id_list[0][0]
-#
-#         material_core_id_list = server_connection_params. \
-#             findMaterialCoreIDInMaterialRollLocationUsingLocationID(location_id)
-#         if material_core_id_list:
-#             for material_core_id_tuple in material_core_id_list:
-#                 material_core_id = material_core_id_tuple[0]
-#
-#                 rfid_tags_list = server_connection_params. \
-#                     findRFIDTagInMaterialCoreRFIDUsingMaterialCoreID(material_core_id)
-#                 if rfid_tags_list:
-#                     for rfid_tags_tuple in rfid_tags_list:
-#                         existing_rfid_tags.add(rfid_tags_tuple[0])
-#
-# print('Existing rfid tags ', existing_rfid_tags)
