@@ -714,69 +714,6 @@ class DatabaseOperations:
                 db_cursor.close()
                 db_connection.close()
 
-    def writeToMaterialRollTable(self, material_roll_id: int, material_core_id: int):
-        """
-            Method with which to write to Material_Roll table
-
-            :param material_roll_id: material roll id assigned to roll.
-            :param material_core_id: Unique id for each core. It is assigned after scanning the tags on the core.
-
-            :return: Null
-        """
-        db_connection = None
-        db_cursor = None
-        try:
-            db_connection = self.get_connection()  # Get a connection from connection pool
-            db_cursor = db_connection.cursor()
-
-            prepared_statement = """
-                                      INSERT INTO Material_Roll(
-                                      Material_Roll_ID,
-                                      Material_Core_ID) 
-                                      VALUES (%s, %s);
-                                  """
-
-            db_cursor.execute(prepared_statement, (material_roll_id, material_core_id))
-            db_connection.commit()  # Save write work
-            print(f'Successfully wrote role id - {material_roll_id} core id - {material_core_id} to material roll '
-                  f'table')
-        except Exception as e:
-            print(f'Error from DatabaseOperations.writeToMaterialRollTable => {e}')
-        finally:
-            if db_connection and db_connection.is_connected():
-                db_cursor.close()
-                db_connection.close()
-
-    def writeMaterialRoleIDToMaterialRollLengthTable(self, material_roll_id: int):
-        """
-            Method with which to write Material_Roll_ID to Material_Roll table
-
-            :param material_roll_id: material roll id assigned to roll.
-
-            :return: Null
-        """
-        db_connection = None
-        db_cursor = None
-        try:
-            db_connection = self.get_connection()  # Get a connection from connection pool
-            db_cursor = db_connection.cursor()
-
-            prepared_statement = """
-                                        INSERT INTO Material_Roll_Length(
-                                        Material_Roll_ID) 
-                                        VALUES (%s);
-                                    """
-
-            db_cursor.execute(prepared_statement, (material_roll_id,))
-            db_connection.commit()  # Save write work
-            print(f'Successfully wrote role id - {material_roll_id} to material roll length table')
-        except Exception as e:
-            print(f'Error from DatabaseOperations.writeMaterialRoleIDToMaterialRollLengthTable => {e}')
-        finally:
-            if db_connection and db_connection.is_connected():
-                db_cursor.close()
-                db_connection.close()
-
     def updateCoreReuseStatusInMaterialCoreRFIDTable(self):
         """
             Function to update the Core_Reuse_Status in Material_Core_RFID table based on whether
