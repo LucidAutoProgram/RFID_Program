@@ -612,6 +612,8 @@ class DatabaseOperations:
 
             db_cursor.execute(prepared_statement, (material_core_id, location_id))
             db_connection.commit()  # Save write work
+            print(f'Successfully wrote material core id - {material_core_id} with location id - {location_id} in'
+                  f'material roll location')
         except Exception as e:
             print(f'Error from DatabaseOperations.writeToMaterialCoreTable => {e}')
         finally:

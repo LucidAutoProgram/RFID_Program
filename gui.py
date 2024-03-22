@@ -5,7 +5,7 @@ from db_operations import server_connection_params
 from utils import manage_rfid_readers, location_labels, location_color
 
 
-def create_core_dashboard_window(title="CORE DASHBOARD", size="1600x800", background_color="white"):
+def create_extruder_dashboard_window(title="Extruder Roll Station", size="1600x800", background_color="white"):
     """
         Initializing the main Tkinter application window
         :param title: Title of the gui window.
@@ -83,10 +83,10 @@ def create_core_dashboard_window(title="CORE DASHBOARD", size="1600x800", backgr
                     # Handle case where no location is found for the IP, possibly with a placeholder
                     device_locations.append("Unknown Location")
 
-        # Filter locations that start with "Extruder"
-        extruder_locations = [loc for loc in device_locations if loc.startswith("Extruder")]
+        # Filter locations that start with "Winder"
+        winder_locations = [loc for loc in device_locations if loc.startswith("Winder")]
 
-        for index, location in enumerate(extruder_locations):
+        for index, location in enumerate(winder_locations):
             row = index // 2
             column = index % 2
 

@@ -12,26 +12,24 @@ location_labels = {}  # dictionary to store location with messages
 location_color = {}  # dictionary to store location with locations to update background color
 
 
-# updating the background color and message for message label
 def update_message_label(label, new_text, bg_color):
     """
-    Updates the text and background color of a given tkinter label widget.
+        Updates the text and background color of a given tkinter label widget.
 
-    :param label: The tkinter label widget to update.
-    :param new_text: The new text to display on the label.
-    :param bg_color: update the background color.
+        :param label: The tkinter label widget to update.
+        :param new_text: The new text to display on the label.
+        :param bg_color: update the background color.
 
     """
     label.config(text=new_text, bg=bg_color)
 
 
-# updating the background color for location label
 def update_color(label, bg_color):
     """
-    Updates the background color of a given tkinter label widget.
+        Updates the background color of a given tkinter label widget.
 
-    :param label: The tkinter label widget to update.
-    :param bg_color: update the background color.
+        :param label: The tkinter label widget to update.
+        :param bg_color: update the background color.
     """
     label.config(bg=bg_color)
 
@@ -78,7 +76,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
     """
     global active_connections, reading_active, processed_core_ids
 
-    if location.startswith('Extruder'):  # Only continue if the reader is located in one of extruder location.
+    if location.startswith('Winder'):  # Only continue if the reader is located in one of extruder winder location.
 
         # Ensure a connection is established
         if ip_address not in active_connections:
@@ -95,7 +93,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
         print(f"Initializing listening for {ip_address}")
         while reading_active[ip_address]:  # If the reader is in reading mode.
             print(f"Reading active for {ip_address}")
-            scan_end_time = datetime.now() + timedelta(seconds=10)  # After scan end time, it writes all the scanned tag
+            scan_end_time = datetime.now() + timedelta(seconds=5)  # After scan end time, it writes all the scanned tag
             response_received = False  # Initialize the response received flag to False at the start of each scanning
             session_rfid_tags = set()
             all_stored_tags = set()
@@ -103,7 +101,8 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
             for tags in all_Tags:
                 all_stored_tags.add(tags[0])
 
-            while datetime.now() < scan_end_time:  # Listening to the rfid reader response will continue for 10 seconds
+            while datetime.now() < scan_end_time:  # Listening to the rfid reader for specified scanning time, and
+                # then processing the tags to the db, displaying messages accordingly on the gui.
 
                 print(f'--------------Started Listening to the rfid reader responses for ip - {ip_address}------------')
                 try:
@@ -124,6 +123,11 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                 except Exception as e:
                     print(f"Error listening to {ip_address}: {e}")
                     break
+
+            locations_set = set()  # Set containing all the locations where rfid tag or core is scanned
+            core_location_set = set()  # Set containing the location of the core station if the core is scanned
+            # on the core station.
+            winder_location_set = set()  # Set containing the location of the winders.
 
             # Correctly check if all session tags are within the stored tags
             if session_rfid_tags.issubset(all_stored_tags):
@@ -166,65 +170,75 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                 else:
                                     filtered_core_location_IDs = existing_core_location_IDs
 
+                                existing_locations = set()
                                 for location_id_tuple in filtered_core_location_IDs:
                                     location_id = location_id_tuple[0]  # Extract the Location_ID
-                                    existing_core_locations = \
+                                    print('filter location', location_id)
+                                    all_locations = \
                                         server_connection_params.findLocationXYZInLocationTableUsingLocationID(
                                             location_id)
+                                    existing_locations.add(all_locations[0][0])
 
-                                    for location_tuple in existing_core_locations:
-                                        core_location = location_tuple[0]
+                                location_name = None
+                                for location_tuple in existing_locations:
 
-                                        if core_location.startswith('Extruder'):
-                                            print(f"Location ID {location_id} starts with 'Extruder'")
+                                    location_name = location_tuple
+                                    print('Location name', location_name)
+                                    locations_set.add(location_name)
 
-                                            app.after(0, lambda: update_message_label(location_labels[location],
-                                                                                      f"Core is not scanned at "
-                                                                                      f"core station.\n Scan it at core"
-                                                                                      f"Station before using it",
-                                                                                      'orange'))
-                                            app.after(0, lambda: update_color(location_color[location],
-                                                                              "orange"))
-                                            print(f"Core is not scanned on the core station")
+                                    if location_name.startswith('CoreStation'):
+                                        core_location_set.add(location_name)
 
+                                    elif location_name.startswith('Winder'):
+                                        winder_location_set.add(location_name)
+
+                                    print(
+                                        f"Processing Location {location_name}")
+
+                                print('Location set', locations_set)
+                                print('Winder set', winder_location_set)
+                                print('Core set', core_location_set)
+
+                                if winder_location_set and winder_location_set.issubset(locations_set):
+                                    print(f"Location name {location_name} starts with 'Winder'")
+                                    print(f"Core is not scanned on the core station")
+                                    app.after(0, lambda: update_message_label(location_labels[location],
+                                                                              f"Core is not scanned at "
+                                                                              f"core station.\n Scan it at core"
+                                                                              f"Station before using it",
+                                                                              'red'))
+                                    app.after(0, lambda: update_color(location_color[location], "red"))
+
+                                elif core_location_set and core_location_set.issubset(locations_set):
+                                    print('Core is scanned on core station')
+                                    app.after(0, lambda: update_message_label(location_labels[location],
+                                                                              f"Core is  scanned at"
+                                                                              f" core station.\n Good for roll making",
+                                                                              'green'))
+                                    app.after(0, lambda: update_color(location_color[location], "green"))
+
+                                    current_location_IDs = server_connection_params.\
+                                        findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip_address)
+
+                                    if current_location_IDs:
+                                        # Extract the first Location_ID from the result
+                                        current_location_ID = current_location_IDs[0][0]
+
+                                        # Check if this combination is already in the database
+                                        if not server_connection_params.checkExistingRecord(
+                                                material_core_id, current_location_ID):
+                                            # If not, proceed with writing to the database
+                                            server_connection_params.writeToMaterialRollLocation(
+                                                material_core_id, current_location_ID)
+                                            # After writing to the database, adding the core ID to
+                                            # the set of processed IDs
+                                            processed_core_ids.add(current_location_ID)
                                         else:
-                                            if core_location.startswith('CoreStation'):
-
-                                                print('Core is scanned on core station')
-
-                                                app.after(0, lambda: update_message_label(location_labels[location],
-                                                                                          f"Core is  scanned at"
-                                                                                          f" core station.\n Good for "
-                                                                                          f"roll making",
-                                                                                          'green'))
-                                                app.after(0, lambda: update_color(location_color[location],
-                                                                                  "green"))
-                                                print(f"Core is  scanned ")
-
-                                            current_location_IDs = server_connection_params.\
-                                                findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip_address)
-
-                                            if current_location_IDs:
-                                                # Extract the first Location_ID from the result
-                                                current_location_ID = current_location_IDs[0][0]
-
-                                                # Check if this combination is already in the database
-                                                if not server_connection_params.checkExistingRecord(
-                                                        material_core_id, current_location_ID):
-                                                    # If not, proceed with writing to the database
-                                                    server_connection_params.writeToMaterialRollLocation(
-                                                        material_core_id, current_location_ID)
-                                                    # After writing to the database, adding the core ID to
-                                                    # the set of processed IDs
-                                                    processed_core_ids.add(current_location_ID)
-                                                else:
-                                                    print(
-                                                        f"Duplicate record not written for Core ID {material_core_id} "
-                                                        f"at Location ID"
-                                                        f" {current_location_ID}")
+                                            print(
+                                                f"Duplicate record not written for Core ID {material_core_id} "
+                                                f"at Location ID {current_location_ID}")
 
             else:
-
                 # If no existing core id is found for the rfid tag scanned, then that means the core
                 # is not scanned on the core station
                 app.after(0, lambda: update_message_label(location_labels[location],
