@@ -53,7 +53,7 @@ def launch_gui(ip_addresses, ip_addresses_with_location):
             product_maker_column.append([sg.Frame(title='', layout=layout, border_width=2,
                                                   title_color='white', relief=sg.RELIEF_SUNKEN,
                                                   background_color='black')])
-        elif 'Extruder' in device_location_XYZ:
+        elif 'Winder' in device_location_XYZ:
             extruder_column.append([sg.Frame(title='', layout=layout, border_width=2,
                                             title_color='white', relief=sg.RELIEF_SUNKEN, background_color='black')])
 
