@@ -106,14 +106,15 @@ async def listen_for_responses(ip_address, app):
         while reading_active[ip_address]:  # If the reader is in reading mode.
             current_tags = set()  # Set for storing all the rfid_tags in a particular rfid scan session.
             current_tags_datetime = {}  # To track the first scan datetime of each tag
-            scan_end_time = datetime.now() + timedelta(seconds=10)  # After scan end time, it writes all the scanned tag
+            scan_end_time = datetime.now() + timedelta(seconds=5)  # After scan end time, it writes all the scanned tag
             # info to the database.
             existing_rfid_tags = set()  # Set containing the existing rfid tags in the database
             all_tags = set()  # All tags are stored in this set, which are scanned particular session of 10 seconds.
             all_tags_datetime = {}
             response_received = False  # Flag to keep track of, if response is received from the reader or not.
 
-            while datetime.now() < scan_end_time:  # Listening to the rfid reader response will continue for 10 seconds
+            while datetime.now() < scan_end_time:  # # Listening to the rfid reader for specified scanning time, and
+                # then processing the tags to the db, displaying messages accordingly on the gui.
 
                 print(f'--------------Started Listening to the rfid reader responses for ip - {ip_address}------------')
                 try:
@@ -250,7 +251,7 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
         for location_id_tuple in existing_core_id_location_id:
             location_id = location_id_tuple[0]
             location_xyz = server_connection_params.findLocationXYZInLocationTableUsingLocationID(location_id)
-            if location_xyz and location_xyz[0][0].startswith('Extruder'):  # If the core_id has a location of extruder
+            if location_xyz and location_xyz[0][0].startswith('Winder'):  # If the core_id has a location of extruder
                 # in the db, i.e. the core is getting reused, and it was scanned on the extruder before, for making the
                 # roll, so assigning new core id.
                 assign_new_core_id = True  # Flag for assigning new core id
@@ -271,7 +272,7 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
                     f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
                     "Images/pass.png", app))
 
-        else:  # If core is not scanned on the extruder, then that means, core is not used for roll creation,
+        else:  # If core is not scanned on the winder, then that means, core is not used for roll creation,
             # assigning same core id to it, because same core is getting scanned repeatedly on the core station without
             # being used on the extruder station.
             core_id = existing_core_id
