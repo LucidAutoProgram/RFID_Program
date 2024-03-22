@@ -8,7 +8,7 @@ from utils import manage_rfid_readers, location_lights, roll_details, update_loc
 message_text = None
 
 
-def create_core_dashboard_window(title="WORKORDER DASHBOARD", size="1600x800", background_color="white"):
+def create_core_dashboard_window(title="WORKORDER DASHBOARD", size="1850x800", background_color="white"):
     """
         Initializing the main Tkinter application window
         :param title: Title of the gui window.
@@ -64,7 +64,7 @@ def create_core_dashboard_window(title="WORKORDER DASHBOARD", size="1600x800", b
     t.start()
 
     extruder_frame = tk.Frame(app, bg="darkgrey", bd=4, relief="groove")
-    extruder_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.8, relheight=0.8)
+    extruder_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.9, relheight=0.8)
 
     def schedule_asyncio_tasks():
         """
@@ -86,10 +86,10 @@ def create_core_dashboard_window(title="WORKORDER DASHBOARD", size="1600x800", b
                     # Handle case where no location is found for the IP, possibly with a placeholder
                     device_locations.append("Unknown Location")
 
-        # Filter locations that start with "Extruder"
-        extruder_locations = [loc for loc in device_locations if loc.startswith("Extruder")]
+        # Filter locations that start with "Winder"
+        winder_locations = [loc for loc in device_locations if loc.startswith("Winder")]
 
-        for index, location in enumerate(extruder_locations):
+        for index, location in enumerate(winder_locations):
             row = index // 4  # Assuming 4 locations per row for layout purposes
             column = index % 4
             extruder_frame.grid_columnconfigure(column, weight=1, minsize=200)
@@ -97,7 +97,7 @@ def create_core_dashboard_window(title="WORKORDER DASHBOARD", size="1600x800", b
 
             message_frame = tk.Frame(extruder_frame, bg="darkgrey", bd=2, relief="sunken")
             message_frame.grid(row=row, column=column, sticky="nsew")
-            message_frame.grid_columnconfigure(0, weight=1)  # Allow internal content to expand
+            # message_frame.grid_columnconfigure(0, weight=1)  # Allow internal content to expand
 
             # Location Frame
             location_frame = tk.Frame(message_frame, bg="black", bd=2, relief="raised")
@@ -121,15 +121,15 @@ def create_core_dashboard_window(title="WORKORDER DASHBOARD", size="1600x800", b
             roll_details_frame = tk.Frame(message_frame, bg="black", bd=2, relief="raised")
             roll_details_frame.pack(fill='both', expand=True)
 
-            roll_detail_label = tk.Label(roll_details_frame, text='No Roll on the Winder ', bg="black", fg="white",
-                                         font=('Cambria', 15))
+            roll_detail_label = tk.Label(roll_details_frame, text='\n\n\n\n\n\nNo Roll on the Winder ', bg="black",
+                                         fg="white", font=('Cambria', 15))
             roll_detail_label.pack()
 
             # Terminal Frame
             terminal_frame = tk.Frame(message_frame, bg="black", bd=2, relief="raised")
             terminal_frame.pack(fill='both', expand=True, )
 
-            terminal_window = tk.Label(terminal_frame, text='', bg="black", fg="white", font=('Cambria', 15))
+            terminal_window = tk.Label(terminal_frame, text='\n', bg="black", fg="white", font=('Cambria', 15))
             terminal_window.pack()
 
             # mapping location to location_label for updating image
