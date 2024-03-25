@@ -28,40 +28,26 @@ def create_core_dashboard_window(title="WORKORDER DASHBOARD", size="1850x800", b
                              font=("Cambria", 24, 'bold'))
     heading_label.pack(pady=20)  # Use padding to space out the label from the window's top edge
 
-    def start_asyncio_loop(loop):
-        """
-                Function to start the asyncio event loop in a separate thread
-                :param loop: Separate event loop for the async operations.
-                :return: None
-            """
-        asyncio.set_event_loop(loop)  # Setting the event loop for the asyncio operations
-        loop.run_forever()  # Start the loop to run forever
-
-    def close_event():
-        """
-            Function to handle window close event
-            :return: None
-        """
-        # Attempt to cancel all tasks
-        for task in asyncio.all_tasks(loop):
-            task.cancel()
-        try:
-            loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop)))
-        except asyncio.CancelledError:
-            # Expecting all tasks to be cancelled, so cancelled errors are ignored
-            pass
-
-        loop.call_soon_threadsafe(loop.stop)  # Safely stop the asyncio loop from another thread
-        app.destroy()  # Destroying the Tkinter window, effectively closing the application
-
-    # Binding the window close event to the custom close_event function
-    app.protocol("WM_DELETE_WINDOW", close_event)
-
-    # Initializing a new asyncio event loop
     loop = asyncio.new_event_loop()
-    # Starting the asyncio loop in a separate thread to avoid blocking the Tkinter main loop
+
+    def start_asyncio_loop(loop):
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+
     t = Thread(target=start_asyncio_loop, args=(loop,))
     t.start()
+
+    async def cleanup_tasks():
+        tasks = [task for task in asyncio.all_tasks(loop) if task is not asyncio.current_task()]
+        [task.cancel() for task in tasks]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        loop.stop()
+
+    def close_event():
+        asyncio.run_coroutine_threadsafe(cleanup_tasks(), loop)
+        app.destroy()
+
+    app.protocol("WM_DELETE_WINDOW", close_event)
 
     extruder_frame = tk.Frame(app, bg="darkgrey", bd=4, relief="groove")
     extruder_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.9, relheight=0.8)
