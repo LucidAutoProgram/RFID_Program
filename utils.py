@@ -217,199 +217,214 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
             material_core_id = None
 
             # Correctly check if all session tags are within the stored tags in the db.
-            if session_rfid_tags.issubset(all_stored_tags):
+            if session_rfid_tags:
+                if session_rfid_tags.issubset(all_stored_tags):
 
-                # Below extracting the core id from rfid tags
-                for tags in session_rfid_tags:
-                    existing_core = server_connection_params. \
-                        findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag(tags)
-                    if existing_core:
-                        # If a core ID is found, extract the last core ID from the results
-                        last_core_id = existing_core[-1][0]
-                        # Map the current tag to its corresponding core ID in the dictionary
-                        tag_to_last_core_id[tags] = last_core_id
+                    # Below extracting the core id from rfid tags
+                    for tags in session_rfid_tags:
+                        existing_core = server_connection_params. \
+                            findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag(tags)
+                        if existing_core:
+                            # If a core ID is found, extract the last core ID from the results
+                            last_core_id = existing_core[-1][0]
+                            # Map the current tag to its corresponding core ID in the dictionary
+                            tag_to_last_core_id[tags] = last_core_id
 
-                        material_core_id = last_core_id
-                    else:
-                        # Handling the case where no core IDs were found for the tag
-                        tag_to_last_core_id[tags] = 'No associated Core ID'
+                            material_core_id = last_core_id
+                        else:
+                            # Handling the case where no core IDs were found for the tag
+                            tag_to_last_core_id[tags] = 'No associated Core ID'
 
-                # Converting the dictionary values (core IDs) to a list
-                core_ids = list(tag_to_last_core_id.values())
-                print(core_ids, 'core_ids')
+                    # Converting the dictionary values (core IDs) to a list
+                    core_ids = list(tag_to_last_core_id.values())
+                    print(core_ids, 'core_ids')
 
-                # Checking if the list of core IDs does not contain the placeholder for missing IDs
-                # and all entries in the list are identical (implying all tags have the same core ID)
-                if 'No associated Core ID' not in core_ids and len(set(core_ids)) == 1:
-                    print("Pass: All tags have the same core ID.")
-                    # fetching core location
-                    existing_core_location_IDs = server_connection_params. \
-                        findLocationIDInMaterialRollLocationUsingMaterialCoreID(material_core_id)
+                    # Checking if the list of core IDs does not contain the placeholder for missing IDs
+                    # and all entries in the list are identical (implying all tags have the same core ID)
+                    if 'No associated Core ID' not in core_ids and len(set(core_ids)) == 1:
+                        print("Pass: All tags have the same core ID.")
+                        # fetching core location
+                        existing_core_location_IDs = server_connection_params. \
+                            findLocationIDInMaterialRollLocationUsingMaterialCoreID(material_core_id)
 
-                    if existing_core_location_IDs:
+                        if existing_core_location_IDs:
 
-                        # Determining if the last location ID in the list matches the current location ID
-                        last_location_id_in_list = existing_core_location_IDs[-1][0] if existing_core_location_IDs \
-                            else None
+                            # Determining if the last location ID in the list matches the current location ID
+                            last_location_id_in_list = existing_core_location_IDs[-1][0] if existing_core_location_IDs \
+                                else None
 
-                        current_location_IDs = server_connection_params. \
-                            findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip_address)
+                            current_location_IDs = server_connection_params. \
+                                findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip_address)
 
-                        if current_location_IDs:
-                            # Extract the first Location_ID from the result
-                            current_location_ID = current_location_IDs[0][0]
+                            if current_location_IDs:
+                                # Extract the first Location_ID from the result
+                                current_location_ID = current_location_IDs[0][0]
 
-                            # Checking the last location if the last location and current location is same then
-                            # filter the last location
-                            if last_location_id_in_list == current_location_ID:
-                                filtered_core_location_IDs = [filter_id for filter_id in existing_core_location_IDs
-                                                              if filter_id[0] != last_location_id_in_list]
-                            else:
-                                filtered_core_location_IDs = existing_core_location_IDs
+                                # Checking the last location if the last location and current location is same then
+                                # filter the last location
+                                if last_location_id_in_list == current_location_ID:
+                                    filtered_core_location_IDs = [filter_id for filter_id in existing_core_location_IDs
+                                                                  if filter_id[0] != last_location_id_in_list]
+                                else:
+                                    filtered_core_location_IDs = existing_core_location_IDs
 
-                            existing_locations = set()
-                            for location_id_tuple in filtered_core_location_IDs:
-                                location_id = location_id_tuple[0]  # Extract the Location_ID
-                                print('filter location', location_id)
-                                all_locations = \
-                                    server_connection_params.findLocationXYZInLocationTableUsingLocationID(
-                                        location_id)
-                                existing_locations.add(all_locations[0][0])
+                                existing_locations = set()
+                                for location_id_tuple in filtered_core_location_IDs:
+                                    location_id = location_id_tuple[0]  # Extract the Location_ID
+                                    print('filter location', location_id)
+                                    all_locations = \
+                                        server_connection_params.findLocationXYZInLocationTableUsingLocationID(
+                                            location_id)
+                                    existing_locations.add(all_locations[0][0])
 
-                            location_name = None
-                            print('Existing locations', existing_locations)
-                            for location_tuple in existing_locations:
+                                location_name = None
+                                print('Existing locations', existing_locations)
+                                for location_tuple in existing_locations:
 
-                                location_name = location_tuple
-                                print('Location name', location_name)
-                                locations_set.add(location_name)
+                                    location_name = location_tuple
+                                    print('Location name', location_name)
+                                    locations_set.add(location_name)
 
-                                if location_name.startswith('CoreStation'):
-                                    core_location_set.add(location_name)
+                                    if location_name.startswith('CoreStation'):
+                                        core_location_set.add(location_name)
 
-                                elif location_name.startswith('Winder'):
-                                    winder_location_set.add(location_name)
+                                    elif location_name.startswith('Winder'):
+                                        winder_location_set.add(location_name)
 
-                                print(
-                                    f"Processing Location {location_name}")
+                                    print(
+                                        f"Processing Location {location_name}")
 
-                            print('Location set', locations_set)
-                            print('Winder set', winder_location_set)
-                            print('Core set', core_location_set)
+                                print('Location set', locations_set)
+                                print('Winder set', winder_location_set)
+                                print('Core set', core_location_set)
 
-                            # Only if the winder set is not empty and is a subset of location_set, i.e. all the
-                            # elements of the winder_location_set are there in location_set.
-                            if winder_location_set and winder_location_set.issubset(locations_set):
-                                print(f"Location name {location_name} starts with 'Winder'")
-                                print(f"Core is not scanned on the core station")
-                                app.after(0,
-                                          lambda: update_location_image(location,
-                                                                        'Image/red.png'))
-                                app.after(0,
-                                          lambda: update_message(terminal_message[location],
-                                                                 'Core is not scanned on core station.\n'
-                                                                 'Scan it on core station before using it.'
-                                                                 ''))
-                                app.after(0,
-                                          lambda: update_message(roll_details[location],
-                                                                 '\n\n\n\n\n\nNo Information to display.'))
+                                # Only if the winder set is not empty and is a subset of location_set, i.e. all the
+                                # elements of the winder_location_set are there in location_set.
+                                if winder_location_set and winder_location_set.issubset(locations_set):
+                                    print(f"Location name {location_name} starts with 'Winder'")
+                                    print(f"Core is not scanned on the core station")
+                                    app.after(0,
+                                              lambda: update_location_image(location,
+                                                                            'Image/red.png'))
+                                    app.after(0,
+                                              lambda: update_message(terminal_message[location],
+                                                                     'Core is not scanned on core station.\n'
+                                                                     'Scan it on core station before using it.'
+                                                                     ''))
+                                    app.after(0,
+                                              lambda: update_message(roll_details[location],
+                                                                     '\n\n\n\n\n\nNo Information to display.'))
 
-                            # Only if the core_location_set is not empty and is a subset of location_set, i.e. all
-                            # the elements of the core_location_set are there in location_set.
-                            elif core_location_set and core_location_set.issubset(locations_set):
-                                print(f"Core is  scanned ")
-                                current_location_IDs = server_connection_params. \
-                                    findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip_address)
-                                print(f'Current location id - {current_location_IDs}')
-                                app.after(0,
-                                          lambda: update_location_image(location,
-                                                                        'Image/green.png'))
-                                # app.after(0,
-                                #           lambda: update_message(roll_details[location],
-                                #                                  '\n\n\n\n\nCore is good to use \n Wait for'
-                                #                                  ' details.....'))
+                                # Only if the core_location_set is not empty and is a subset of location_set, i.e. all
+                                # the elements of the core_location_set are there in location_set.
+                                elif core_location_set and core_location_set.issubset(locations_set):
+                                    print(f"Core is  scanned ")
+                                    current_location_IDs = server_connection_params. \
+                                        findLocationIDInRFIDDeviceDetailsUsingDeviceIP(ip_address)
+                                    print(f'Current location id - {current_location_IDs}')
+                                    app.after(0,
+                                              lambda: update_location_image(location,
+                                                                            'Image/green.png'))
+                                    # app.after(0,
+                                    #           lambda: update_message(roll_details[location],
+                                    #                                  '\n\n\n\n\nCore is good to use \n Wait for'
+                                    #                                  ' details.....'))
 
-                                if current_location_IDs:
-                                    # Extract the first Location_ID from the result
-                                    current_location_ID = current_location_IDs[0][0]
+                                    if current_location_IDs:
+                                        # Extract the first Location_ID from the result
+                                        current_location_ID = current_location_IDs[0][0]
 
-                                    # Adding the core ID to the set of processed IDs
-                                    processed_core_ids.add(current_location_ID)
+                                        # Adding the core ID to the set of processed IDs
+                                        processed_core_ids.add(current_location_ID)
 
-                                    material_roll_id_list = server_connection_params. \
-                                        findMaterialRollIDInMaterialRollTableUsingMaterialCoreID(
-                                        material_core_id)
-
-                                    if not material_roll_id_list:  # if the material roll id is not
-                                        # assigned yet, then work order assignment can be made.
-
-                                        # ------ Doing core id and role id assignment below -------
-                                        server_connection_params.writeToMaterialRollTable(
-                                            material_core_id, material_core_id)
-                                        server_connection_params. \
-                                            writeMaterialRoleIDToMaterialRollLengthTable(
+                                        material_roll_id_list = server_connection_params. \
+                                            findMaterialRollIDInMaterialRollTableUsingMaterialCoreID(
                                             material_core_id)
 
-                                        # -------- Doing the work order assignment below ----------
+                                        if not material_roll_id_list:  # if the material roll id is not
+                                            # assigned yet, then work order assignment can be made.
 
-                                        asyncio.create_task(processWorkOrderIDAndNumberToDB(
-                                            current_location_ID))
+                                            # ------ Doing core id and role id assignment below -------
+                                            server_connection_params.writeToMaterialRollTable(
+                                                material_core_id, material_core_id)
+                                            server_connection_params. \
+                                                writeMaterialRoleIDToMaterialRollLengthTable(
+                                                material_core_id)
 
-                                        # # Run the synchronous database operation in a separate thread
-                                        # executor = ThreadPoolExecutor(max_workers=1)
-                                        #
-                                        # # -------- Doing the work order assignment below ----------
-                                        # await asyncio.get_event_loop(). \
-                                        #     run_in_executor(executor,
-                                        #                     processWorkOrderIDAndNumberToDB,
-                                        #                     current_location_ID)
+                                            # -------- Doing the work order assignment below ----------
 
-                                        # ------- Assigning the roll specs, like length, turns etc ----
-                                        asyncio.create_task(processMaterialRollSpecs(material_core_id))
+                                            asyncio.create_task(processWorkOrderIDAndNumberToDB(
+                                                current_location_ID))
 
-                                    else:
-                                        print('Already assigned roll id and work order to roll, '
-                                              'so cannot reassign a new one.')
-                                        material_roll_id = material_roll_id_list[0][0]
-                                        work_order_IDs = server_connection_params. \
-                                            findWorkOrderIDFromWorkOrderAssignmentTableUsingLocationID(
-                                            current_location_ID)
+                                            # # Run the synchronous database operation in a separate thread
+                                            # executor = ThreadPoolExecutor(max_workers=1)
+                                            #
+                                            # # -------- Doing the work order assignment below ----------
+                                            # await asyncio.get_event_loop(). \
+                                            #     run_in_executor(executor,
+                                            #                     processWorkOrderIDAndNumberToDB,
+                                            #                     current_location_ID)
 
-                                        roll_specs = server_connection_params. \
-                                            findMaterialRollSpecsFromMaterialRollLengthTableUsingMaterialRollID(
-                                            material_roll_id)
+                                            # ------- Assigning the roll specs, like length, turns etc ----
+                                            asyncio.create_task(processMaterialRollSpecs(material_core_id))
 
-                                        if roll_specs and not all(value is None for value in roll_specs[0]):
-                                            roll_len, roll_start_time, roll_end_time, roll_turns = roll_specs[0]
-                                            wo_id = work_order_IDs[-1][0]  # Extract the ID from the list of tuples
-                                            work_order_numbers = server_connection_params. \
-                                                findWorkOrderNumberFromWorkOrderMainTableUsingWorkOrderID(wo_id)
+                                        else:
+                                            print('Already assigned roll id and work order to roll, '
+                                                  'so cannot reassign a new one.')
+                                            material_roll_id = material_roll_id_list[0][0]
+                                            work_order_IDs = server_connection_params. \
+                                                findWorkOrderIDFromWorkOrderAssignmentTableUsingLocationID(
+                                                current_location_ID)
 
-                                            # Extract the work order number from the list of tuples
-                                            work_order_number = work_order_numbers[0][0]
-                                            print(
-                                                f'Work Order ID: {wo_id}, Work Order Number: {work_order_number}')
+                                            roll_specs = server_connection_params. \
+                                                findMaterialRollSpecsFromMaterialRollLengthTableUsingMaterialRollID(
+                                                material_roll_id)
 
-                                            app.after(0,
-                                                      lambda: update_message(roll_details[location],
-                                                                             f'Work Order Number -> '
-                                                                             f'{work_order_number}\n'
-                                                                             f'Roll ID ->{material_roll_id}\n'
-                                                                             f'Location -> {location}\n'
-                                                                             f'Roll Length -> {roll_len}\n'
-                                                                             f'Roll Turns -> {roll_turns}\n'
-                                                                             f'Roll Creation Start time -> '
-                                                                             f'{roll_start_time}\n'
-                                                                             f'Roll Creation End Time->'
-                                                                             f'{roll_end_time}'
-                                                                             ))
-                                            app.after(0,
-                                                      lambda: update_message(terminal_message[location], '\n'))
+                                            if roll_specs and not all(value is None for value in roll_specs[0]):
+                                                roll_len, roll_start_time, roll_end_time, roll_turns = roll_specs[0]
+                                                wo_id = work_order_IDs[-1][0]  # Extract the ID from the list of tuples
+                                                work_order_numbers = server_connection_params. \
+                                                    findWorkOrderNumberFromWorkOrderMainTableUsingWorkOrderID(wo_id)
 
-                            else:
-                                print(f'None of the location matched with location set')
+                                                # Extract the work order number from the list of tuples
+                                                work_order_number = work_order_numbers[0][0]
+                                                print(
+                                                    f'Work Order ID: {wo_id}, Work Order Number: {work_order_number}')
+
+                                                app.after(0,
+                                                          lambda: update_message(roll_details[location],
+                                                                                 f'Work Order Number -> '
+                                                                                 f'{work_order_number}\n'
+                                                                                 f'Roll ID ->{material_roll_id}\n'
+                                                                                 f'Location -> {location}\n'
+                                                                                 f'Roll Length -> {roll_len}\n'
+                                                                                 f'Roll Turns -> {roll_turns}\n'
+                                                                                 f'Roll Creation Start time -> '
+                                                                                 f'{roll_start_time}\n'
+                                                                                 f'Roll Creation End Time->'
+                                                                                 f'{roll_end_time}'
+                                                                                 ))
+                                                app.after(0,
+                                                          lambda: update_message(terminal_message[location], '\n'))
+
+                                else:
+                                    print(f'None of the location matched with location set')
+                    else:
+                        print("Fail: Not all tags have the same core ID.")
+                        app.after(0,
+                                  lambda: update_location_image(location,
+                                                                'Image/red.png'))
+                        app.after(0,
+                                  lambda: update_message(terminal_message[location],
+                                                         'Core is not scanned on core station.\n'
+                                                         'Scan it on core station before using it.'))
+                        app.after(0,
+                                  lambda: update_message(roll_details[location],
+                                                         '\n\n\n\n\n\nNo Information to display.'))
+
+
                 else:
-                    print("Fail: Not all tags have the same core ID.")
+                    print(f"Core is  not scanned on the core station")
                     app.after(0,
                               lambda: update_location_image(location,
                                                             'Image/red.png'))
@@ -420,20 +435,6 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                     app.after(0,
                               lambda: update_message(roll_details[location],
                                                      '\n\n\n\n\n\nNo Information to display.'))
-
-
-            else:
-                print(f"Core is  not scanned on the core station")
-                app.after(0,
-                          lambda: update_location_image(location,
-                                                        'Image/red.png'))
-                app.after(0,
-                          lambda: update_message(terminal_message[location],
-                                                 'Core is not scanned on core station.\n'
-                                                 'Scan it on core station before using it.'))
-                app.after(0,
-                          lambda: update_message(roll_details[location],
-                                                 '\n\n\n\n\n\nNo Information to display.'))
 
             if not response_received:
                 print('No core for scanning')
