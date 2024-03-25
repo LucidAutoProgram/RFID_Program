@@ -41,14 +41,12 @@ def display_message_and_image(message, image_path, app):
     image_label.image = photo
 
     # Packing the image label on the left side of the frame, with some padding
-    image_label.pack(side="left",)
+    image_label.pack(side="left", )
 
     # Creating a label within the frame for displaying the message, styled with a white foreground and specific font
-    message_label = tk.Label(message_frame, text=message, bg="black", fg="white", font=("Cambria", 30, 'bold italic'),
-                             wraplength=240)  # The `wrap length` determines how text wraps in the label
-
+    message_label = tk.Label(message_frame, text=message, bg="black", fg="white", font=("Cambria", 30, 'bold italic'))
     # Packing the message label on the right side of the frame, allowing it to expand and fill the available space
-    message_label.pack(side="right", expand=True, fill="both",)
+    message_label.pack(side="right", expand=True, fill="both", )
 
 
 def get_rfid_tag_info(response):
@@ -106,13 +104,12 @@ async def listen_for_responses(ip_address, app):
         while reading_active[ip_address]:  # If the reader is in reading mode.
             current_tags = set()  # Set for storing all the rfid_tags in a particular rfid scan session.
             current_tags_datetime = {}  # To track the first scan datetime of each tag
-            scan_end_time = datetime.now() + timedelta(seconds=20)  # After scan end time, it writes all the scanned tag
+            scan_end_time = datetime.now() + timedelta(seconds=10)  # After scan end time, it writes all the scanned tag
             # info to the database.
             existing_rfid_tags = set()  # Set containing the existing rfid tags in the database
             all_tags = set()  # All tags are stored in this set, which are scanned particular session of 10 seconds.
             all_tags_datetime = {}
             response_received = False  # Flag to keep track of, if response is received from the reader or not.
-
             while datetime.now() < scan_end_time:  # # Listening to the rfid reader for specified scanning time, and
                 # then processing the tags to the db, displaying messages accordingly on the gui.
 
@@ -192,23 +189,49 @@ async def listen_for_responses(ip_address, app):
                 app.after(0, lambda: display_message_and_image(
                     f'Please Put Core For scanning', "Images/core.png", app))
 
+            tags_end_time = {}
+            for tag in all_tags:
+                # Assuming 'all_tags' should actually be 'tag' for the function argument
+                end_time = server_connection_params.findRFIDTagEndDateTimeFromMaterialCoreRFIDTableUsingRFIDTag(tag)
+                print(end_time, 'end_time')
+                if end_time:
+                    # Store the end time in the dictionary
+                    tags_end_time[tag] = end_time[0][0]
+                else:
+                    tags_end_time[tag] = None
+
+            print(tags_end_time, 'tags')
+
+            # Extracting end times into a list
+            end_times_list = list(tags_end_time.values())
+            print(end_times_list, 'end_times_list')
+
             # Checking if any tags have been received in the current RFID reader session
             if all_tags:
                 # Checking if the number of tags in all_tags is equal to or more than three
                 if len(all_tags) >= 3:
-                    # Finding the intersection of all_tags and existing_rfid_tags to identify any repeated tags
-                    tags_repeated = all_tags.intersection(existing_rfid_tags)
+                    print(end_times_list, 'end')
+                    if len(set(end_times_list)) == 1:
+                        # Finding the intersection of all_tags and existing_rfid_tags to identify any repeated tags
+                        tags_repeated = all_tags.intersection(existing_rfid_tags)
 
-                    # If there are repeated tags even one tag then , it implies some or all tags have been scanned
-                    # before
-                    if tags_repeated:
-                        print('Core is already scanned.')
-                        await processCoreInfo(ip_address, all_tags, all_tags_datetime, app, existing_rfid_tags,
-                                              all_tags)
+                        # If there are repeated tags even one tag then , it implies some or all tags have been scanned
+                        # before
+                        if tags_repeated:
+                            print('Core is already scanned.')
+                            await processCoreInfo(ip_address, all_tags, all_tags_datetime, app, existing_rfid_tags,
+                                                  all_tags)
+                        else:
+                            # If there are no repeated tags, it means all current tags are new
+                            await processCoreInfo(ip_address, current_tags, current_tags_datetime, app,
+                                                  existing_rfid_tags, all_tags)
+
                     else:
-                        # If there are no repeated tags, it means all current tags are new
-                        await processCoreInfo(ip_address, current_tags, current_tags_datetime,
-                                              app, existing_rfid_tags, all_tags)
+                        app.after(0, lambda: display_message_and_image(
+                            f'One of the RFID Tag is damaged.\nRemove the damaged tag.\nPut new tag on it.',
+                            "Images/fail.png", app))
+                        print('end date time tag is being used')
+
                 else:
                     # If there are less than 3 tags, calculating how many more are needed to proceed
                     tags_needed = 3 - len(all_tags)
@@ -269,7 +292,7 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
 
                 # Prompting the user that reused core is successfully scanned and new core id is assigned
                 app.after(0, lambda: display_message_and_image(
-                    f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
+                    f'Core is successfully scanned.\n Assigned Core ID is {core_id}.\n Core is ready to use.',
                     "Images/pass.png", app))
 
         else:  # If core is not scanned on the winder, then that means, core is not used for roll creation,
@@ -278,7 +301,7 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
             core_id = existing_core_id
             print(f'Existing core id - {core_id} with same tags and not scanned on extruder side')
             app.after(0, lambda: display_message_and_image(
-                f'Core is already scanned and assigned Core ID is {core_id} and is ready to use',
+                f'Core is already scanned.\nAssigned Core ID is {core_id}\n.Core is ready to use',
                 "Images/pass.png", app))
 
         # Case for handling missing tags

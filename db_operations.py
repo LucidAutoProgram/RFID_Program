@@ -258,6 +258,7 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+
     def findMaxCoreIdFromMaterialCoreRFIDTable(self) -> int:
         """
             Fetches the maximum Material_Core_ID from the Material_Core_RFID table.
@@ -398,6 +399,37 @@ class DatabaseOperations:
 
         except Exception as e:
             print(f'Error from DatabaseOperations.findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def findRFIDTagEndDateTimeFromMaterialCoreRFIDTableUsingRFIDTag(self, rfid_tag: str) -> List[Tuple[str]]:
+        """
+            Fetches all the RFID tag End Date Time from the Material_Core_RFID table based on the RFID_Tag.
+            :param rfid_tag: RFID tag scanned by the rfid reader.
+
+            :return: List[Tuple[
+                                Material_Core_RFID_End
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                      SELECT DISTINCT Material_Core_RFID_End 
+                                      FROM Material_Core_RFID
+                                      WHERE RFID_Tag = %s 
+                                    """
+            db_cursor.execute(prepared_statement, (rfid_tag,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findRFIDTagEndDateTimeFromMaterialCoreRFIDTableUsingRFIDTag => {e}')
         finally:
             if db_cursor:
                 db_cursor.close()
