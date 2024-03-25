@@ -5,7 +5,7 @@ from db_operations import server_connection_params
 from utils import manage_rfid_readers, location_labels, location_color
 
 
-def create_extruder_dashboard_window(title="Extruder Roll Station", size="1600x800", background_color="white"):
+def create_extruder_dashboard_window(title="Extruder Roll Station", size="1700x800", background_color="white"):
     """
         Initializing the main Tkinter application window
         :param title: Title of the gui window.
@@ -25,40 +25,26 @@ def create_extruder_dashboard_window(title="Extruder Roll Station", size="1600x8
                              font=("Cambria", 24, 'bold'))
     heading_label.pack(pady=20)  # Use padding to space out the label from the window's top edge
 
-    def start_asyncio_loop(loop):
-        """
-                Function to start the asyncio event loop in a separate thread
-                :param loop: Separate event loop for the async operations.
-                :return: None
-            """
-        asyncio.set_event_loop(loop)  # Setting the event loop for the asyncio operations
-        loop.run_forever()  # Start the loop to run forever
-
-    def close_event():
-        """
-            Function to handle window close event
-            :return: None
-        """
-        # Attempt to cancel all tasks
-        for task in asyncio.all_tasks(loop):
-            task.cancel()
-        try:
-            loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop)))
-        except asyncio.CancelledError:
-            # Expecting all tasks to be cancelled, so cancelled errors are ignored
-            pass
-
-        loop.call_soon_threadsafe(loop.stop)  # Safely stop the asyncio loop from another thread
-        app.destroy()  # Destroying the Tkinter window, effectively closing the application
-
-    # Binding the window close event to the custom close_event function
-    app.protocol("WM_DELETE_WINDOW", close_event)
-
-    # Initializing a new asyncio event loop
     loop = asyncio.new_event_loop()
-    # Starting the asyncio loop in a separate thread to avoid blocking the Tkinter main loop
+
+    def start_asyncio_loop(loop):
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+
     t = Thread(target=start_asyncio_loop, args=(loop,))
     t.start()
+
+    async def cleanup_tasks():
+        tasks = [task for task in asyncio.all_tasks(loop) if task is not asyncio.current_task()]
+        [task.cancel() for task in tasks]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        loop.stop()
+
+    def close_event():
+        asyncio.run_coroutine_threadsafe(cleanup_tasks(), loop)
+        app.destroy()
+
+    app.protocol("WM_DELETE_WINDOW", close_event)
 
     extruder_frame = tk.Frame(app, bg="black", bd=4, relief="groove")
     extruder_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.8, relheight=0.8)
@@ -102,7 +88,7 @@ def create_extruder_dashboard_window(title="Extruder Roll Station", size="1600x8
             # mapping location to location_label for updating background color
             location_color[location] = location_label
 
-            message_label = tk.Label(message_frame, text='No Core for scanning. Please Put Core For Scanning',
+            message_label = tk.Label(message_frame, text='No Core for scanning.\nPlease Put Core For Scanning',
                                      bg="yellow", fg="black", font=('Cambria', 18, 'bold italic'))
             message_label.pack(expand=True, fill='both')
 
