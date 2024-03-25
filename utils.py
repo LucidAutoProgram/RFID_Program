@@ -106,7 +106,7 @@ async def listen_for_responses(ip_address, app):
         while reading_active[ip_address]:  # If the reader is in reading mode.
             current_tags = set()  # Set for storing all the rfid_tags in a particular rfid scan session.
             current_tags_datetime = {}  # To track the first scan datetime of each tag
-            scan_end_time = datetime.now() + timedelta(seconds=5)  # After scan end time, it writes all the scanned tag
+            scan_end_time = datetime.now() + timedelta(seconds=20)  # After scan end time, it writes all the scanned tag
             # info to the database.
             existing_rfid_tags = set()  # Set containing the existing rfid tags in the database
             all_tags = set()  # All tags are stored in this set, which are scanned particular session of 10 seconds.
