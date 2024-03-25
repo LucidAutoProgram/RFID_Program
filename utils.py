@@ -23,7 +23,7 @@ def display_message_and_image(message, image_path, app):
     img = Image.open(image_path)
 
     # Resizing the image to 150x150 pixels using Lanczos resampling for high quality
-    img = img.resize((150, 150), Image.Resampling.LANCZOS)
+    img = img.resize((550, 550), Image.Resampling.LANCZOS)
 
     # Converting the PIL image to a format that Tkinter can use
     photo = ImageTk.PhotoImage(img)
@@ -32,7 +32,7 @@ def display_message_and_image(message, image_path, app):
     message_frame = tk.Frame(app, bg="black", bd=4, relief="groove")
 
     # Positioning the frame within the window, centered and taking up 80% of the width and 50% of the height
-    message_frame.place(relx=0.5, rely=0.6, anchor="center", relwidth=0.8, relheight=0.5)
+    message_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.8, relheight=0.8)
 
     # Creating a label within the frame for displaying the image, with a black background
     image_label = tk.Label(message_frame, image=photo, bg="black")
@@ -41,14 +41,14 @@ def display_message_and_image(message, image_path, app):
     image_label.image = photo
 
     # Packing the image label on the left side of the frame, with some padding
-    image_label.pack(side="left", padx=10)
+    image_label.pack(side="left",)
 
     # Creating a label within the frame for displaying the message, styled with a white foreground and specific font
-    message_label = tk.Label(message_frame, text=message, bg="black", fg="white", font=("Cambria", 18, 'bold italic'),
+    message_label = tk.Label(message_frame, text=message, bg="black", fg="white", font=("Cambria", 30, 'bold italic'),
                              wraplength=240)  # The `wrap length` determines how text wraps in the label
 
     # Packing the message label on the right side of the frame, allowing it to expand and fill the available space
-    message_label.pack(side="right", expand=True, fill="both", padx=10)
+    message_label.pack(side="right", expand=True, fill="both",)
 
 
 def get_rfid_tag_info(response):

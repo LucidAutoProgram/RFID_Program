@@ -5,7 +5,7 @@ from db_operations import server_connection_params
 from utils import manage_rfid_readers, display_message_and_image
 
 
-def create_core_dashboard_window(title="CORE DASHBOARD", size="600x500", background_color="white"):
+def create_core_dashboard_window(title="CORE DASHBOARD", size="1800x800", background_color="white"):
     """
         Initializing the main Tkinter application window
         :param title: Title of the gui window.
