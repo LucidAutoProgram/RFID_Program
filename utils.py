@@ -224,16 +224,22 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                     existing_core = server_connection_params. \
                         findMaterialCoreIDFromMaterialCoreRFIDTableUsingRFIDTag(tags)
                     if existing_core:
-                        last_core_id = existing_core[-1][0]  # Get the last core ID in the list
+                        # If a core ID is found, extract the last core ID from the results
+                        last_core_id = existing_core[-1][0]
+                        # Map the current tag to its corresponding core ID in the dictionary
                         tag_to_last_core_id[tags] = last_core_id
+
                         material_core_id = last_core_id
                     else:
                         # Handling the case where no core IDs were found for the tag
                         tag_to_last_core_id[tags] = 'No associated Core ID'
 
+                # Converting the dictionary values (core IDs) to a list
                 core_ids = list(tag_to_last_core_id.values())
-                print(core_ids,'core_ids')
+                print(core_ids, 'core_ids')
 
+                # Checking if the list of core IDs does not contain the placeholder for missing IDs
+                # and all entries in the list are identical (implying all tags have the same core ID)
                 if 'No associated Core ID' not in core_ids and len(set(core_ids)) == 1:
                     print("Pass: All tags have the same core ID.")
                     # fetching core location
@@ -332,7 +338,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
 
                                     material_roll_id_list = server_connection_params. \
                                         findMaterialRollIDInMaterialRollTableUsingMaterialCoreID(
-                                            material_core_id)
+                                        material_core_id)
 
                                     if not material_roll_id_list:  # if the material roll id is not
                                         # assigned yet, then work order assignment can be made.
@@ -342,7 +348,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                             material_core_id, material_core_id)
                                         server_connection_params. \
                                             writeMaterialRoleIDToMaterialRollLengthTable(
-                                                material_core_id)
+                                            material_core_id)
 
                                         # -------- Doing the work order assignment below ----------
 
@@ -367,14 +373,13 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                         material_roll_id = material_roll_id_list[0][0]
                                         work_order_IDs = server_connection_params. \
                                             findWorkOrderIDFromWorkOrderAssignmentTableUsingLocationID(
-                                                current_location_ID)
+                                            current_location_ID)
 
                                         roll_specs = server_connection_params. \
                                             findMaterialRollSpecsFromMaterialRollLengthTableUsingMaterialRollID(
-                                                material_roll_id)
+                                            material_roll_id)
 
                                         if roll_specs and not all(value is None for value in roll_specs[0]):
-
                                             roll_len, roll_start_time, roll_end_time, roll_turns = roll_specs[0]
                                             wo_id = work_order_IDs[-1][0]  # Extract the ID from the list of tuples
                                             work_order_numbers = server_connection_params. \
