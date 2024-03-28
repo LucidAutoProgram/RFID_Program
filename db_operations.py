@@ -224,12 +224,13 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
-    def writeToWorkOrderAssignmentTable(self, work_order_id: int, location_id: str):
+    def writeToWorkOrderAssignmentTable(self, work_order_id: int, location_id: str, roll_id: int):
         """
             Method with which to write to WorkOrder_Assignment table
 
             :param work_order_id: The work order id assigned to a particular roll.
             :param location_id: Location of the roll where it is getting scanned.
+            :param roll_id: Roll ID assigned to the roll.
 
             :return: Null
         """
@@ -239,16 +240,17 @@ class DatabaseOperations:
             db_connection = self.get_connection()  # Get a connection from connection pool
             db_cursor = db_connection.cursor()
 
-            write_operation = (work_order_id, location_id)
+            write_operation = (work_order_id, location_id, roll_id)
             prepared_statement = """
                                     INSERT INTO WorkOrder_Assignment (
-                                    WorkOrder_ID, Location_ID) 
-                                    VALUES (%s, %s);
+                                    WorkOrder_ID, Location_ID,
+                                    Roll_ID) 
+                                    VALUES (%s, %s, %s);
                                  """
 
             db_cursor.execute(prepared_statement, write_operation)
             db_connection.commit()  # Save write work
-            print(f'Successfully wrote work order id - {work_order_id} with location id - {location_id} to work order'
+            print(f'Successfully wrote work order id - {work_order_id} with location id - {location_id} and roll id -{roll_id} to work order'
                   f'assignment table')
         except Exception as e:
             print(f'Error from DatabaseOperations.writeToWorkOrderAssignmentTable => {e}')
@@ -409,6 +411,7 @@ class DatabaseOperations:
 
             db_cursor.execute(prepared_statement, update_operation)
             db_connection.commit()
+            print(f'Successfully updated material roll end time for roll id - {material_roll_id}')
         except Exception as e:
             print(f'Error from DatabaseOperations.'
                   f'updateMaterialRollCreationEndTimeInMaterialRollLengthTable => {e}')
@@ -1080,6 +1083,40 @@ class DatabaseOperations:
         except Exception as e:
             print(f'Error from DatabaseOperations.findMaterialRollSpecsFromMaterialRollLengthTableUsingMaterialRollID '
                   f'=> {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+
+    def findRollTurnsFromMaterialRollLengthTableUsingMaterialRollID(self, material_roll_id: int) -> \
+            List[Tuple[int]]:
+        """
+            Fetches the Material_Roll_Num_of_Turns from the Material_Roll_Length table based on the Material_Roll_ID.
+            :param material_roll_id: Roll ID of the material roll.
+
+            :return: List[Tuple[
+                                Material_Roll_Num_of_Turns,
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                    SELECT DISTINCT Material_Roll_Num_of_Turns
+                                    FROM Material_Roll_Length
+                                    WHERE Material_Roll_ID = %s 
+                                    """
+            db_cursor.execute(prepared_statement, (material_roll_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findRollTurnsFromMaterialRollLengthTableUsingMaterialRollID '
+                    f'=> {e}')
         finally:
             if db_cursor:
                 db_cursor.close()

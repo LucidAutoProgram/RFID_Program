@@ -1,10 +1,13 @@
 import asyncio
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-
 from db_operations import server_connection_params
 from rfid_api import open_net_connection
 from PIL import Image, ImageTk
+from pathlib import Path
+import RPi.GPIO as GPIO
+from threading import Lock
 
 # -------------------- Global Variables declarations ------------------
 
@@ -15,6 +18,247 @@ location_labels = {}
 location_lights = {}
 roll_details = {}
 terminal_message = {}
+should_cancel = False
+roll_specs_called = {}  # Dictionary to keep track of whether the processMaterialRollSpecs function is called for particular location
+# Global lock for serializing access to GPIO operations
+gpio_lock = Lock()
+
+# Define the base directory as the directory where this script is located
+base_dir = Path(__file__).parent
+
+# Construct the image paths
+green_image_path = base_dir / "Image" / "green.png"
+red_image_path = base_dir / "Image" / "red.png"
+yellow_image_path = base_dir / "Image" / "yellow.png"
+
+# -------------- GPIO roll length measurement ---------------------
+
+winder_click_pins = {  # Different GPIO pins connected to four different sensors of the extruder station, as there
+    # are four winders on the extruder side.
+    12: "Winder #01",
+    17: "Winder #02",
+    5: "Winder #03",
+    27: "Winder #04"
+}
+# Initialize counters for each roll on the winder.
+winder_click_counters = {
+    "Winder #01": 0,
+    "Winder #02": 0,
+    "Winder #03": 0,
+    "Winder #04": 0
+}
+
+mm_per_turn = 100  # Length of material per turn in mm
+
+# Setup GPIO for each roll
+GPIO.setmode(GPIO.BCM)  # Broadcom pin-numbering scheme
+for pin in winder_click_pins.keys():
+    GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+
+def click_callback(channel):
+    """
+        Called when a GPIO event is detected. Updates the counter for the corresponding winder.
+        :param channel: The GPIO pin/channel that triggered the event.
+    """
+    global winder_click_counters
+    try:
+        with gpio_lock:
+            winder_name = winder_click_pins[channel]
+            winder_click_counters[winder_name] += 1
+            print(f"Turn detected! Total length: {winder_click_counters[winder_name] * mm_per_turn}mm")
+    except Exception as e:
+        print(f"Error in click_callback for channel {channel}: {e}")
+
+
+def handle_gpio_blocking(gpio_pin):
+    """
+        Monitors GPIO pin for falling edge events in a blocking manner.
+        :param gpio_pin: The GPIO pin to monitor.
+    """
+    global should_cancel
+    try:
+        with gpio_lock:
+            print(f'Setting up event detection for GPIO pin {gpio_pin}')
+            GPIO.setup(gpio_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Re-setup if pin was cleaned up previously
+            GPIO.add_event_detect(gpio_pin, GPIO.FALLING, callback=click_callback, bouncetime=200)
+
+        while not should_cancel:
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("GPIO monitoring interrupted by keyboard")
+    except Exception as e:
+        print(f"Error in handle_gpio_blocking for GPIO pin {gpio_pin}: {e}")
+    finally:
+        with gpio_lock:
+            # GPIO.cleanup()
+            GPIO.cleanup(pin)
+
+
+async def handle_gpio_async(gpio_pin):
+    """
+        Wrapper async function to run the blocking GPIO function in a separate thread
+        :param gpio_pin: GPIO pin of the raspberry pi.
+        :return: None
+    """
+    global should_cancel
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor() as pool:
+        print(f'Calling handle gpio blocking - gpio {gpio_pin}')
+        await loop.run_in_executor(pool, handle_gpio_blocking, gpio_pin)
+
+
+async def remove_event_detect_async(gpio_pin):
+    """
+        Asynchronously removes event detection for a GPIO pin.
+        :param gpio_pin: The GPIO pin for which to remove event detection.
+    """
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, remove_event_detect, gpio_pin)
+
+
+def remove_event_detect(gpio_pin):
+    """
+        Removes event detection for a specified GPIO pin.
+        :param gpio_pin: The GPIO pin for which to remove event detection.
+    """
+    try:
+        with gpio_lock:
+            GPIO.setmode(GPIO.BCM)  # Re-assert GPIO mode to ensure correct state
+            GPIO.remove_event_detect(gpio_pin)
+            print(f"Event detection removed for GPIO pin {gpio_pin}")
+    except Exception as e:
+        print(f"Error removing event detection for GPIO pin {gpio_pin}: {e}")
+
+
+async def cancel_gpio_task(gpio_task, gpio_pin):
+    """
+        Cancels the GPIO monitoring task and performs necessary cleanup.
+        :param gpio_task: The asyncio task associated with GPIO monitoring to be canceled.
+        :param gpio_pin: The GPIO pin associated with the task to remove event detection.
+    """
+    global should_cancel
+    # Signal the blocking function to stop
+    should_cancel = True
+    print('Cancellation flag set for GPIO task')
+
+    # Now cancel the asyncio task
+    gpio_task.cancel()
+    try:
+        await gpio_task
+        print('GPIO task cancelled successfully')
+    except asyncio.CancelledError:
+        print("GPIO task acknowledged cancellation")
+
+    # Perform GPIO cleanup by removing event detection asynchronously
+    try:
+        await remove_event_detect_async(gpio_pin)
+    except Exception as e:
+        print(f"Error during GPIO cleanup for pin {gpio_pin}: {e}")
+
+
+async def processMaterialRollSpecs(material_roll_id, location):
+    """
+        Function to update the roll specs like roll length, number of turns, roll creation start time and end time.
+        :param material_roll_id: Roll ID assigned to the roll.
+        :param location: Location of the roll.
+        :return: None
+    """
+    global winder_click_counters  # Global dictionary storing the winder location as key and counter count as value
+
+    gpio_pin = None
+    # Determine the GPIO pin based on the winder location
+    if location in winder_click_pins.values():
+        gpio_pin = [pin for pin, name in winder_click_pins.items() if name == location][0]
+
+    if gpio_pin is not None:
+        winder_click_counters[location] = 0
+
+        print(f'Calling gpio async with gpio pin - {gpio_pin} for location - {location}')
+
+        # Create and start the GPIO monitoring task
+        gpio_task = asyncio.create_task(handle_gpio_async(gpio_pin))
+
+        # update roll creation start time
+        server_connection_params.updateMaterialRollCreationStartTimeInMaterialRollLengthTable(material_roll_id)
+
+        # Here counting clicks are 0 when this function is called
+        previous_click_count = -1
+        print('Location in process material roll specs - ', location)
+        print(f'Counter value for location - {location} is {winder_click_counters[location]}')
+
+        try:
+            while True:
+                print(
+                    f'Counter value in the while loop for location - {location}-  is {winder_click_counters[location]}')
+                await asyncio.sleep(0.5)  # Poll the click_count every half second to see if it's still changing
+                if winder_click_counters[location] == -1:
+                    print(f"Exiting loop for {location} as no core is present for scanning.")
+                    break  # Exit the loop if no core for scanning
+
+                current_click_count = winder_click_counters[location]
+                print(f'Current click count for location - {location} is - {current_click_count}')
+                if current_click_count != previous_click_count:  # If there's a new click, i.e. new turn has been made by the roll, update the database
+                    roll_length = current_click_count * mm_per_turn  # Calculate total length based on clicks
+                    # Update the roll number of turns and roll length in the database
+                    print('Roll length before updation - ', roll_length)
+                    server_connection_params.updateMaterialRollLengthAndMaterialRollNumOfTurnsInMaterialRollLengthTable(
+                        roll_length, current_click_count, material_roll_id)
+                    previous_click_count = current_click_count  # Update the previous click count for the next iteration
+                elif winder_click_counters[location] == -1:
+                    # Break the loop immediately if the counter is set to -1, indicating no more processing is needed
+                    print(f"Exiting loop for {location} as the counter is set to -1.")
+                    break
+
+            # After the loop completes (when click_count is -1), considering the rolling process done because there is no more
+            # roll.
+            # Update the roll making end time - when roll making is finished
+            server_connection_params.updateMaterialRollCreationEndTimeInMaterialRollLengthTable(material_roll_id)
+
+        except Exception as e:
+            print(f"Error during material roll specs processing for {location}: {e}")
+
+        # Cancel the GPIO monitoring task and perform cleanup
+        await cancel_gpio_task(gpio_task, gpio_pin)
+        print(f"Finished processing roll {material_roll_id}")
+
+        # try:
+        #     # Wait for the task to complete with a timeout (e.g., 5 seconds)
+        #     await asyncio.wait_for(gpio_task, timeout=5)
+        #     print('Awaited gpio task')
+        # except asyncio.CancelledError:
+        #     print("GPIO monitoring stopped cleanly.")
+        # except TimeoutError:
+        #     print("GPIO task did not cancel cleanly within timeout period.")
+
+    else:
+        print(f'Invalid location provided: {location}')
+
+
+# async def processMaterialRollSpecs(material_roll_id):
+#     """
+#         Function to update the roll specs like roll length, number of turns, roll creation start time and end time.
+#         :param material_roll_id: Roll ID assigned to the roll.
+#         :return: None
+#     """
+#     roll_turns = 0
+#     roll_length = 0
+#     # Function for updating the roll making start time
+#     server_connection_params.updateMaterialRollCreationStartTimeInMaterialRollLengthTable(material_roll_id)
+#     while roll_turns < 100:
+#         roll_turns = roll_turns + 1
+#         roll_length = roll_length + 2  # Increasing the roll length by 2, with an assumption that roll length is
+#         # increasing by 2 metres with each turn
+#
+#         # Below updating the roll number of turns and roll length
+#         server_connection_params. \
+#             updateMaterialRollLengthAndMaterialRollNumOfTurnsInMaterialRollLengthTable(roll_length, roll_turns,
+#                                                                                        material_roll_id)
+#         await asyncio.sleep(1)  # Adding a sleep of 1 sec with an assumption that roll takes 1 second to
+#         # complete one turn.
+#
+#     # Function for updating the roll making start time - when roll making is finished
+#     server_connection_params.updateMaterialRollCreationEndTimeInMaterialRollLengthTable(material_roll_id)
 
 
 def update_location_image(location, image_path):
@@ -37,11 +281,10 @@ def update_location_image(location, image_path):
 
 def update_message(label, new_text):
     """
-    Updates the roll information
+        Updates the roll information
 
-    :param label: The tkinter label widget to update.
-    :param new_text: The new text to display on the label.
-
+        :param label: The tkinter label widget to update.
+        :param new_text: The new text to display on the label.
     """
     label.config(text=new_text)
 
@@ -94,7 +337,7 @@ def generateUniqueWorkOrderNumber():
     return work_order_number
 
 
-async def processWorkOrderIDAndNumberToDB(location_id):
+async def processWorkOrderIDAndNumberToDB(location_id, roll_id):
     """
         Function to do assignment of WorkOrder_ID, WorkOrder_Number and Location_ID in the db.
     :param location_id: Location id of the roll.
@@ -103,34 +346,8 @@ async def processWorkOrderIDAndNumberToDB(location_id):
     work_order_id = generateUniqueWorkOrderID()
     work_order_number = generateUniqueWorkOrderNumber()
     server_connection_params.writeToWorkOrderMainTable(work_order_id, work_order_number)
-    server_connection_params.writeToWorkOrderAssignmentTable(work_order_id, location_id)
+    server_connection_params.writeToWorkOrderAssignmentTable(work_order_id, location_id, roll_id)
     server_connection_params.writeToWorkOrderScheduledTable(work_order_id)
-
-
-async def processMaterialRollSpecs(material_roll_id):
-    """
-        Function to update the roll specs like roll length, number of turns, roll creation start time and end time.
-        :param material_roll_id: Roll ID assigned to the roll.
-        :return: None
-    """
-    roll_turns = 0
-    roll_length = 0
-    # Function for updating the roll making start time
-    server_connection_params.updateMaterialRollCreationStartTimeInMaterialRollLengthTable(material_roll_id)
-    while roll_turns < 100:
-        roll_turns = roll_turns + 1
-        roll_length = roll_length + 2  # Increasing the roll length by 2, with an assumption that roll length is
-        # increasing by 2 metres with each turn
-
-        # Below updating the roll number of turns and roll length
-        server_connection_params. \
-            updateMaterialRollLengthAndMaterialRollNumOfTurnsInMaterialRollLengthTable(roll_length, roll_turns,
-                                                                                       material_roll_id)
-        await asyncio.sleep(1)  # Adding a sleep of 1 sec with an assumption that roll takes 1 second to
-        # complete one turn.
-
-    # Function for updating the roll making start time - when roll making is finished
-    server_connection_params.updateMaterialRollCreationEndTimeInMaterialRollLengthTable(material_roll_id)
 
 
 async def manage_rfid_readers(reader_ips, reader_locations, app):
@@ -155,7 +372,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
         :param app : window of GUI
         :return: None
     """
-    global active_connections, reading_active, processed_core_ids, last_core_id
+    global active_connections, reading_active, processed_core_ids, last_core_id, winder_click_counters, roll_specs_called
 
     if location.startswith('Winder'):  # Only continue if the reader is located in one of extruder winder location.
 
@@ -188,7 +405,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
             while datetime.now() < scan_end_time:  # Listening to the rfid reader for specified scanning time, and
                 # then processing the tags to the db, displaying messages accordingly on the gui.
 
-                print(f'--------------Started Listening to the rfid reader responses for ip - {ip_address}------------')
+                # print(f'--------------Started Listening to the rfid reader responses for ip - {ip_address}------------')
                 try:
                     response = await asyncio.wait_for(reader.read(1024), timeout=1)
                     if response:  # If reader sent the response.
@@ -305,7 +522,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                     print(f"Core is not scanned on the core station")
                                     app.after(0,
                                               lambda: update_location_image(location,
-                                                                            'Image/red.png'))
+                                                                            str(red_image_path)))
                                     app.after(0,
                                               lambda: update_message(terminal_message[location],
                                                                      'Core is not scanned on core station.\n'
@@ -324,7 +541,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                     print(f'Current location id - {current_location_IDs}')
                                     app.after(0,
                                               lambda: update_location_image(location,
-                                                                            'Image/green.png'))
+                                                                            str(green_image_path)))
                                     # app.after(0,
                                     #           lambda: update_message(roll_details[location],
                                     #                                  '\n\n\n\n\nCore is good to use \n Wait for'
@@ -341,6 +558,10 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                             findMaterialRollIDInMaterialRollTableUsingMaterialCoreID(
                                             material_core_id)
 
+                                        location_xyz = \
+                                        server_connection_params.findLocationXYZInLocationTableUsingLocationID(
+                                            current_location_ID)[0][0]
+
                                         if not material_roll_id_list:  # if the material roll id is not
                                             # assigned yet, then work order assignment can be made.
 
@@ -354,7 +575,20 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                             # -------- Doing the work order assignment below ----------
 
                                             asyncio.create_task(processWorkOrderIDAndNumberToDB(
-                                                current_location_ID))
+                                                current_location_ID, material_core_id))
+
+                                            if not roll_specs_called.get(location_xyz, False):
+
+                                                # ------- Assigning the roll specs, like length, turns etc ----
+                                                asyncio.create_task(processMaterialRollSpecs(material_core_id,
+                                                                                             location_xyz))
+
+                                                roll_specs_called[location_xyz] = True
+                                                print(
+                                                    f'Setted the roll_specs_called dict flag for location - {location_xyz} to True')
+                                            else:
+                                                print(
+                                                    f'processMaterialRollSpecs for - {location_xyz} has already been called')
 
                                             # # Run the synchronous database operation in a separate thread
                                             # executor = ThreadPoolExecutor(max_workers=1)
@@ -364,9 +598,6 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                             #     run_in_executor(executor,
                                             #                     processWorkOrderIDAndNumberToDB,
                                             #                     current_location_ID)
-
-                                            # ------- Assigning the roll specs, like length, turns etc ----
-                                            asyncio.create_task(processMaterialRollSpecs(material_core_id))
 
                                         else:
                                             print('Already assigned roll id and work order to roll, '
@@ -413,7 +644,7 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                         print("Fail: Not all tags have the same core ID.")
                         app.after(0,
                                   lambda: update_location_image(location,
-                                                                'Image/red.png'))
+                                                                str(red_image_path)))
                         app.after(0,
                                   lambda: update_message(terminal_message[location],
                                                          'Core is not scanned on core station.\n'
@@ -422,12 +653,11 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
                                   lambda: update_message(roll_details[location],
                                                          '\n\n\n\n\n\nNo Information to display.'))
 
-
                 else:
                     print(f"Core is  not scanned on the core station")
                     app.after(0,
                               lambda: update_location_image(location,
-                                                            'Image/red.png'))
+                                                            str(red_image_path)))
                     app.after(0,
                               lambda: update_message(terminal_message[location],
                                                      'Core is not scanned on core station.\n'
@@ -438,8 +668,23 @@ async def listen_for_extruder_reader_responses(ip_address, location, app):
 
             if not response_received:
                 print('No core for scanning')
+                # When there is no core for scanning on any winder, setting the click_count to -1 for that particular
+                # winder.
+                winder_click_counters[location] = -1
+                print(
+                    f'Setting counter value to {winder_click_counters[location]} for location - {location} since no response received.')
+
+                roll_specs_called[
+                    location] = False  # Setting the flag to False since gpio task for that location roll which has no response is closed.
+                print(f'Setted the roll_specs_called dict flag for location - {location} to False')
+
+                # Remove event detect for the specific GPIO pin as it's no longer needed
+                # gpio_pin = next(key for key, value in winder_click_pins.items() if value == location)
+                # print(F'Removing event for location - {location} with gpio pin - {gpio_pin}')
+                # GPIO.remove_event_detect(gpio_pin)
+
                 app.after(0,
-                          lambda: update_location_image(location, 'Image/yellow.png'))
+                          lambda: update_location_image(location, str(yellow_image_path)))
                 app.after(0,
                           lambda: update_message(terminal_message[location], '\n'))
                 app.after(0,

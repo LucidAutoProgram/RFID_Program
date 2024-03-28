@@ -4,11 +4,18 @@ from threading import Thread
 from PIL import Image, ImageTk
 from db_operations import server_connection_params
 from utils import manage_rfid_readers, location_lights, roll_details, update_location_image, terminal_message
+from pathlib import Path
+
+# Define the base directory as the directory where this script is located
+base_dir = Path(__file__).parent
+
+# Construct the image paths
+yellow_image_path = base_dir / "Image" / "yellow.png"
 
 message_text = None
 
 
-def create_core_dashboard_window(title="WORKORDER DASHBOARD", size="1850x800", background_color="white"):
+def create_work_order_dashboard_window(title="WORKORDER DASHBOARD", size="1850x800", background_color="white"):
     """
         Initializing the main Tkinter application window
         :param title: Title of the gui window.
@@ -90,7 +97,7 @@ def create_core_dashboard_window(title="WORKORDER DASHBOARD", size="1850x800", b
             location_frame.pack(fill='both')
 
             # Load and display image within the location frame
-            image_path = "Image/yellow.png"  # Update with the actual image path
+            image_path = str(yellow_image_path)  # Update with the actual image path
             image = Image.open(image_path)
             image = image.resize((20, 20), Image.LANCZOS)
             photo = ImageTk.PhotoImage(image)
