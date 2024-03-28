@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import asyncio
 import tkinter as tk
 from PIL import Image, ImageTk
+from pathlib import Path
 from db_operations import server_connection_params
 from rfid_api import open_net_connection
 
@@ -9,6 +10,14 @@ from rfid_api import open_net_connection
 
 reading_active = {}  # This dictionary keeps track of the ip addresses of the rfid readers which are in reading mode.
 active_connections = {}  # Global storage for active connections
+
+# Define the base directory as the directory where this script is located
+base_dir = Path(__file__).parent
+
+# Construct the image paths
+core_image_path = base_dir / "Images" / "core.png"
+fail_image_path = base_dir / "Images" / "fail.png"
+pass_image_path = base_dir / "Images" / "pass.png"
 
 
 def display_message_and_image(message, image_path, app):
@@ -45,6 +54,7 @@ def display_message_and_image(message, image_path, app):
 
     # Creating a label within the frame for displaying the message, styled with a white foreground and specific font
     message_label = tk.Label(message_frame, text=message, bg="black", fg="white", font=("Cambria", 30, 'bold italic'))
+
     # Packing the message label on the right side of the frame, allowing it to expand and fill the available space
     message_label.pack(side="right", expand=True, fill="both", )
 
@@ -110,6 +120,7 @@ async def listen_for_responses(ip_address, app):
             all_tags = set()  # All tags are stored in this set, which are scanned particular session of 10 seconds.
             all_tags_datetime = {}
             response_received = False  # Flag to keep track of, if response is received from the reader or not.
+
             while datetime.now() < scan_end_time:  # # Listening to the rfid reader for specified scanning time, and
                 # then processing the tags to the db, displaying messages accordingly on the gui.
 
@@ -166,13 +177,13 @@ async def listen_for_responses(ip_address, app):
 
                         else:
                             app.after(0, lambda: display_message_and_image(
-                                f'NO RESPONSE', "Images/fail.png", app))
+                                f'NO RESPONSE', str(fail_image_path), app))
                             print(f"NO rfid tags {ip_address}")
 
                     else:
                         # Handle connection closed
                         app.after(0, lambda: display_message_and_image(
-                            f'NO RESPONSE', "Images/fail.png", app))
+                            f'NO RESPONSE', str(fail_image_path), app))
                         print(f"Connection closed by reader {ip_address}")
                         break
 
@@ -187,9 +198,10 @@ async def listen_for_responses(ip_address, app):
             if not response_received:  # If no response is received from the reader.
                 print('No tags received')
                 app.after(0, lambda: display_message_and_image(
-                    f'Please Put Core For scanning', "Images/core.png", app))
+                    f'Please Put Core For scanning', str(core_image_path), app))
 
             tags_end_time = {}
+            print('All tags', all_tags)
             for tag in all_tags:
                 # Assuming 'all_tags' should actually be 'tag' for the function argument
                 end_time = server_connection_params.findRFIDTagEndDateTimeFromMaterialCoreRFIDTableUsingRFIDTag(tag)
@@ -210,7 +222,7 @@ async def listen_for_responses(ip_address, app):
             if all_tags:
                 # Checking if the number of tags in all_tags is equal to or more than three
                 if len(all_tags) >= 3:
-                    print(end_times_list, 'end')
+                    # print(end_times_list, 'end')
                     if len(set(end_times_list)) == 1:
                         # Finding the intersection of all_tags and existing_rfid_tags to identify any repeated tags
                         tags_repeated = all_tags.intersection(existing_rfid_tags)
@@ -229,7 +241,7 @@ async def listen_for_responses(ip_address, app):
                     else:
                         app.after(0, lambda: display_message_and_image(
                             f'One of the RFID Tag is damaged.\nRemove the damaged tag.\nPut new tag on it.',
-                            "Images/fail.png", app))
+                            str(fail_image_path), app))
                         print('end date time tag is being used')
 
                 else:
@@ -237,8 +249,7 @@ async def listen_for_responses(ip_address, app):
                     tags_needed = 3 - len(all_tags)
                     # Prompting the user that more tags are needed for processing
                     app.after(0, lambda: display_message_and_image(
-                        f'RFID tags are less than 3. Need {tags_needed} more tag', "Images/fail.png", app))
-
+                        f'RFID tags are less than 3.\n Need {tags_needed} more tag', str(fail_image_path), app))
     else:
         print(f'Not a core station rfid reader - {ip_address}')
 
@@ -292,8 +303,8 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
 
                 # Prompting the user that reused core is successfully scanned and new core id is assigned
                 app.after(0, lambda: display_message_and_image(
-                    f'Core is successfully scanned.\n Assigned Core ID is {core_id}.\n Core is ready to use.',
-                    "Images/pass.png", app))
+                    f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
+                    str(pass_image_path), app))
 
         else:  # If core is not scanned on the winder, then that means, core is not used for roll creation,
             # assigning same core id to it, because same core is getting scanned repeatedly on the core station without
@@ -301,8 +312,8 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
             core_id = existing_core_id
             print(f'Existing core id - {core_id} with same tags and not scanned on extruder side')
             app.after(0, lambda: display_message_and_image(
-                f'Core is already scanned.\nAssigned Core ID is {core_id}\n.Core is ready to use',
-                "Images/pass.png", app))
+                f'Core is already scanned \n Assigned Core ID is {core_id} \n Core is ready to use',
+                str(pass_image_path), app))
 
         # Case for handling missing tags
         missing_tags = existing_tags - all_received_tags
@@ -327,7 +338,7 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
             # Prompting the user that new core is successfully scanned and new core id is assigned
             app.after(0, lambda: display_message_and_image(
                 f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
-                "Images/pass.png", app))
+                str(pass_image_path), app))
 
         else:
             # Create a new core_id, if not even a single core_id is found in the db
@@ -335,11 +346,12 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
             print(f'New core id - {core_id} with totally new rfid tags')
             server_connection_params.writeToMaterialCoreTable(core_id)
             server_connection_params.writeToMaterialRollLocation(core_id, loc_id)
+            print('Core is successfully scanned')
 
             # Prompting the user that new core is successfully scanned and new core id is assigned
             app.after(0, lambda: display_message_and_image(
                 f'Core is successfully scanned. \n Assigned Core ID is {core_id}. \n Core is ready to use.',
-                "Images/pass.png", app))
+                str(pass_image_path), app))
 
     for tag in tags:
         try:
@@ -360,4 +372,5 @@ async def processCoreInfo(ip_address, tags, tag_scan_time, app, existing_tags, a
 
         except Exception as e:
             print(f"Error processing tag {tag}: {e}")
-            app.after(0, lambda: display_message_and_image(f"Error processing tag {tag}: {e}", "Images/fail.png", app))
+            app.after(0,
+                      lambda: display_message_and_image(f"Error processing tag {tag}: {e}", str(fail_image_path), app))
