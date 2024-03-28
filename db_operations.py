@@ -920,6 +920,8 @@ class DatabaseOperations:
 
             db_cursor.execute(prepared_statement, (material_core_id, location_id))
             db_connection.commit()  # Save write work
+            print(f'successfully write location {location_id} to material core {material_core_id}')
+
         except Exception as e:
             print(f'Error from DatabaseOperations.writeToMaterialCoreTable => {e}')
         finally:
@@ -1047,6 +1049,37 @@ class DatabaseOperations:
             if db_connection:
                 db_connection.close()
 
+    def findWorkOrderIDFromWorkOrderAssignmentTableUsingRollID(self, roll_id: int) -> List[Tuple[int]]:
+        """
+            Fetches the WorkOrder_ID from the WorkOrder_Assignment table based on the Roll_ID.
+            :param roll_id: unique id assigned to specific roll
+
+            :return: List[Tuple[
+                                WorkOrder_ID
+                        ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                         SELECT DISTINCT WorkOrder_ID 
+                                         FROM WorkOrder_Assignment
+                                         WHERE Roll_ID = %s 
+                                       """
+            db_cursor.execute(prepared_statement, (roll_id,))
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findWorkOrderIDFromWorkOrderAssignmentTableUsingLocationID => {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
     def findMaterialRollSpecsFromMaterialRollLengthTableUsingMaterialRollID(self, material_roll_id: int) -> \
             List[Tuple[int, datetime, datetime, int]]:
         """
@@ -1080,6 +1113,138 @@ class DatabaseOperations:
         except Exception as e:
             print(f'Error from DatabaseOperations.findMaterialRollSpecsFromMaterialRollLengthTableUsingMaterialRollID '
                   f'=> {e}')
+        finally:
+            if db_cursor:
+                db_cursor.close()
+            if db_connection:
+                db_connection.close()
+
+    def writeRollIDRollInTimeLocationID(self, material_roll_id: int, roll_in_time: datetime,
+                                        roll_out_time: datetime, location_id: str):
+
+        """
+            Method with which to write Material_Roll_ID , Roll_In_Time  and Location_ID to
+             Roll_Storage table
+            :param roll_out_time: time when role exit storage
+            :param location_id: location at which role is stored.
+            :param roll_in_time: time when roll enter in storage unit.
+            :param material_roll_id: material roll id assigned to roll.
+            :return: Null
+         """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+
+            prepared_statement = """
+                                       INSERT INTO Roll_Storage(
+                                       Roll_ID,
+                                       Roll_In_Time,
+                                       Roll_Out_Time,
+                                       Location_ID) 
+                                       VALUES (%s,%s,%s,%s);
+                                 """
+
+            db_cursor.execute(prepared_statement, (material_roll_id, roll_in_time, roll_out_time, location_id))
+            db_connection.commit()  # Save write work
+            print(f'Successfully wrote role id - {material_roll_id} with role in time -{roll_in_time} at '
+                  f'location {location_id}to roll storage table')
+        except Exception as e:
+            print(f'Error from DatabaseOperations.writeRollIDRollInTimeLocationID => {e}')
+        finally:
+            if db_connection and db_connection.is_connected():
+                db_cursor.close()
+                db_connection.close()
+
+    def updateRollOutTime(self, material_roll_id: int, roll_out_time: datetime, location_id: int):
+        """
+        Method to update Material_Roll_ID's Roll_Out_Time and Location_ID in the Roll_Storage table.
+        :param material_roll_id: The ID of the material roll.
+        :param roll_out_time: The time when the roll exits the storage unit.
+        :param location_id: The new location ID for the roll.
+        :return: None
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from the connection pool
+            db_cursor = db_connection.cursor()
+
+            prepared_statement = """
+                                    UPDATE Roll_Storage
+                                    SET Roll_Out_Time = %s, Location_ID = %s
+                                    WHERE Roll_ID = %s
+                                 """
+
+            db_cursor.execute(prepared_statement, (roll_out_time, location_id, material_roll_id,))
+            db_connection.commit()  # Save the update
+            print(
+                f'Successfully updated roll out time to {roll_out_time} and location ID to {location_id} for roll ID'
+                f' {material_roll_id} in the Roll_Storage table.')
+        except Exception as e:
+            print(f'Error from DatabaseOperations.updateRollOutTime => {e}')
+        finally:
+            if db_connection and db_connection.is_connected():
+                db_cursor.close()
+                db_connection.close()
+
+    def updateDataForRoll(self, material_roll_id: int, roll_in_time: datetime,
+                          location_id: int):
+        """
+        Method to update Material_Roll_ID's Roll_Out_Time and Location_ID in the Roll_Storage table.
+        :param roll_in_time: Time at which role enter storage unit
+        :param material_roll_id: The ID of the material roll.
+        :param location_id: The new location ID for the roll.
+        :return: None
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from the connection pool
+            db_cursor = db_connection.cursor()
+
+            prepared_statement = """
+                                    UPDATE Roll_Storage
+                                    SET Roll_In_Time = %s, Roll_Out_Time = NULL, Location_ID = %s
+                                    WHERE Roll_ID = %s
+                                 """
+
+            db_cursor.execute(prepared_statement, (roll_in_time, location_id, material_roll_id,))
+            db_connection.commit()  # Save the update
+            print(
+                f'Successfully updated  roll in time to {roll_in_time}'
+                f' and location ID to {location_id} for roll ID {material_roll_id} in the Roll_Storage table.')
+        except Exception as e:
+            print(f'Error from DatabaseOperations.updateDataForRole => {e}')
+        finally:
+            if db_connection and db_connection.is_connected():
+                db_cursor.close()
+                db_connection.close()
+
+    def findAllRollIDRollInTimeInStorageRollTable(self) -> List[Tuple[str]]:
+        """
+           Fetches all the Roll_ID and Roll_In_Time and Location_ID from the Roll_Storage table.
+
+        :return: List[Tuple[
+                            Roll_ID , Roll_In_Time,Roll_Out_Time,Location_ID
+                    ]]
+        """
+        db_connection = None
+        db_cursor = None
+        try:
+            db_connection = self.get_connection()  # Get a connection from connection pool
+            db_cursor = db_connection.cursor()
+            prepared_statement = """
+                                         SELECT Roll_ID , Roll_In_Time , Roll_Out_Time,Location_ID 
+                                         FROM Roll_Storage
+                                       """
+            db_cursor.execute(prepared_statement)
+            db_result = db_cursor.fetchall()  # Get query results
+            return db_result
+
+        except Exception as e:
+            print(f'Error from DatabaseOperations.findAllRollIDRollInTimeInStorageRollTable => {e}')
         finally:
             if db_cursor:
                 db_cursor.close()
